@@ -33,7 +33,7 @@ prob_set = [prob] * time_arrival_horizon
 randomness = np.random.uniform(low=0, high=1, size=(time_arrival_horizon,))
 
 # data info
-charge_rate = 30 # in kW
+charge_rate = 10 # in kW
 bat_cap = 50 # in Kwh
 
 # set the size of menu

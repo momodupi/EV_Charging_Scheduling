@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 fig, ax = plt.subplots(1, 1)
 
 import json
+import time
 
 # import data
 with open('ev.json') as json_file:
@@ -245,34 +246,41 @@ b_ub = b_ub_u
 pd.DataFrame(A_ub).to_csv("A_ub.csv")
 pd.DataFrame(b_ub).to_csv("b_ub.csv")
 
-# lambdas, V = np.linalg.eig(A_eq.T)
-# print(np.shape(A_eq))
-Q, R = np.linalg.qr(A_eq)
-# print(np.shape(R))
-# print(np.all(Q.dot(R)==A_eq))
-rank_R = matrix_rank(R)
-# print(np.shape(R))
-# print(matrix_rank(R[0:rank_R]))
+# # lambdas, V = np.linalg.eig(A_eq.T)
+# # print(np.shape(A_eq))
+# Q, R = np.linalg.qr(A_eq)
+# # print(np.shape(R))
+# # print(np.all(Q.dot(R)==A_eq))
+# rank_R = matrix_rank(R)
+# # print(np.shape(R))
+# # print(matrix_rank(R[0:rank_R]))
 
-R_reduction = R[np.where(R.any(axis=1))]
-# print(matrix_rank(R_reduction), np.shape(R_reduction))
-R_non_zero = np.where(R.any(axis=1))[0]
-Q_reduction = Q[:,R_non_zero]
-# Q_reduction = Q_reduction[np.where(R.any(axis=1))]
-# print('R:', np.shape(R_reduction))
-# print('Q:', np.shape(Q_reduction))
-eq_prj = np.linalg.pinv(Q_reduction)
-# print(eq_prj.dot(A_eq), eq_prj.dot(b_eq))
-# print(matrix_rank(eq_prj.dot(A_eq)), np.shape(eq_prj.dot(A_eq)))
+# R_reduction = R[np.where(R.any(axis=1))]
+# # print(matrix_rank(R_reduction), np.shape(R_reduction))
+# R_non_zero = np.where(R.any(axis=1))[0]
+# Q_reduction = Q[:,R_non_zero]
+# # Q_reduction = Q_reduction[np.where(R.any(axis=1))]
+# # print('R:', np.shape(R_reduction))
+# # print('Q:', np.shape(Q_reduction))
+# eq_prj = np.linalg.pinv(Q_reduction)
+# # print(eq_prj.dot(A_eq), eq_prj.dot(b_eq))
+# # print(matrix_rank(eq_prj.dot(A_eq)), np.shape(eq_prj.dot(A_eq)))
 
-
+# s_time = time.time()
 # result_prj = linprog(
 #     c=-c_lin, 
 #     A_eq=eq_prj.dot(A_eq), 
 #     b_eq=eq_prj.dot(b_eq), 
 #     A_ub=A_ub, 
-#     b_ub=b_ub
+#     b_ub=b_ub,
+#     bounds=[0, None],
+#     method='interior-point'
+#     # method='simplex'
 #     )
+# e_time = time.time()
+# t1 = e_time - s_time
+
+# s_time = time.time()
 result = linprog(
     c=-c_lin, 
     A_eq=A_eq, 
@@ -283,9 +291,18 @@ result = linprog(
     # method='interior-point'
     method='simplex'
     )
+# e_time = time.time()
+# t2 = e_time - s_time
+
 print(result.x)
+# print(result_prj.x)
+# print(result_prj.x==result.x)
 print(-result.fun)
-# print(result_prj.fun)
+# print(-result_prj.fun)
+# print(np.allclose(result.x, result_prj.x))
+# print(t1, t2)
+
+
 
 # # construct z_s and the matrix of J^*
 # z_s = {}
@@ -317,7 +334,7 @@ res = {
 with open('result.json', 'w') as json_file:
     json.dump(y, json_file) 
     
-print(np.sum(e))
+# print(np.sum(e))
 
 # print(A_eq_c.dot(result.x))
 
