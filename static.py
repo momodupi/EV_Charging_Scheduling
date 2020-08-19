@@ -60,7 +60,9 @@ for t in EV:
     # else:
     #     w[s] = [ EV[t] ] 
     # print( EV[t]['m'], EV[t]['n'] )
-    w[s][ EV[t]['m'] ][ EV[t]['n'] ] += 1
+    w[s][ EV[t]['m'] ][ EV[t]['n']-1 ] += 1
+
+# print(w)
 
 
 def price_turbulance(s):
@@ -85,7 +87,8 @@ def get_v(s,t,m,n):
             * price turbulance over time (gamma) 
             / time flexibility discount
     '''
-    return (1+price_turbulance(s)) * base_price*(m+1)*menu_m_step  / (1+(n/menu_n_size))
+    # return (1+price_turbulance(s)) * base_price*m / n
+    return base_price*m / (1+n/10)
 
 def get_c(s):
     # base_price = 0.12 # $/kWh
@@ -93,11 +96,11 @@ def get_c(s):
     # print(s/time_unit_set[time_unit])
     cur_time = int(s/time_unit_set[time_unit]) % 24
     return 9.341/100 if cur_time >= 11 and cur_time <= 19 else 0.948/100
+    # return 0.09341
 
 
-
-def get_d(s=0):
-    return 500 # kWh
+def get_d(s):
+    return 2000 # kWh
 
 # set all v,c,z
 v = {}
@@ -117,7 +120,7 @@ for s in range(time_horizon):
                     v[s][t][mi][ni] = get_v(s=s, t=0, m=m, n=n)
 
 
-
+# print(v)
 
 # construct c_lin, Au_b, b_ub, A_eq, b_eq
 r = charge_rate
@@ -131,7 +134,8 @@ for s in range(time_horizon):
     stmn2cnt[s] = {}
     for mi, m in enumerate(menu['m']):
         for ni,n in enumerate(menu['n']):
-            for t in range(s-ni, s+1):
+            # this should be n
+            for t in range(s-n, s+1):
                 if t < 0:
                     continue
                 c_lin.append( v[s][t][mi][ni] )
@@ -152,6 +156,8 @@ with open('cnt2stmn.json', 'w') as json_file:
 
 # add -c for e_s at end of c_lin
 c_lin = np.concatenate(( np.array(c_lin), np.array(c)*(-1) ))
+
+pd.DataFrame(c_lin).to_csv("c_lin.csv")
 # print(c_lin)
 # A_ub_buf = {}
 # print(len(c_lin))
@@ -162,7 +168,8 @@ for s in range(time_horizon):
     A_eq_e[s][-(time_horizon-s)] = -1
     for mi, m in enumerate(menu['m']):
         for ni,n in enumerate(menu['n']):
-            for t in range(s-ni, s+1):
+            # this should be n
+            for t in range(s-n, s+1):
                 if t < 0:
                     continue
                 A_eq_e[s][ stmn2cnt[s][t][mi][ni] ] = 1
@@ -175,22 +182,26 @@ pd.DataFrame(A_eq_e).to_csv("A_eq_e.csv")
 b_eq_c = np.zeros(time_horizon*menu_m_size*menu_n_size)
 A_eq_c = np.zeros(shape=(time_horizon*menu_m_size*menu_n_size, ye_size))
 A_eq_c_cnt = 0
+
+test_cnt = 0
 for t in range(0, time_horizon):
     for mi, m in enumerate(menu['m']):
         for ni,n in enumerate(menu['n']):
-            # constraint
-            for s in range(t, t+ni):
+            # constraint, this should be n
+            for s in range(t, t+n+1):
                 # if stmn in the dic
-                
+                # print(s,t,mi,ni)
                 # if s in stmn2cnt and t in stmn2cnt[s] and mi in stmn2cnt[s][t] and ni in stmn2cnt[s][t][mi]:
                 # if t in stmn2cnt[s]:
                 #     if mi in stmn2cnt[s][t]:
                 #         if ni in stmn2cnt[s][t][mi]:
                 if s in stmn2cnt:
                     A_eq_c[A_eq_c_cnt][ stmn2cnt[s][t][mi][ni] ] = 1
-                    b_eq_c[A_eq_c_cnt] = m*w[t][mi][ni]
                     # print(A_ub_c[A_ub_c_cnt])
-        A_eq_c_cnt += 1
+            # m should be the multiple of r
+            # m_ceil = (int(m/r))*r
+            b_eq_c[A_eq_c_cnt] = m*w[t][mi][ni]
+            A_eq_c_cnt += 1
 
 # np.set_printoptions(threshold=sys.maxsize)
 pd.DataFrame(A_eq_c).to_csv("A_eq_c.csv")
@@ -199,32 +210,37 @@ pd.DataFrame(b_eq_c).to_csv("b_eq_c.csv")
 
 A_eq = np.concatenate( (A_eq_e, A_eq_c) )
 b_eq = np.concatenate( (b_eq_e, b_eq_c) )
+
+# A_eq = A_eq_e
+# b_eq = b_eq_e
 # A_eq = A_eq_c
 # b_eq = b_eq_c
+
 
 pd.DataFrame(A_eq).to_csv("A_eq.csv")
 pd.DataFrame(b_eq).to_csv("b_eq.csv")
 
 A_ub_u = np.eye(ye_size)
 b_ub_u = np.zeros(ye_size)
-A_ub_l = -np.eye(ye_size)
-b_ub_l = np.zeros(ye_size)
+# A_ub_l = -np.eye(ye_size)
+# b_ub_l = np.zeros(ye_size)
 
 for s in range(time_horizon):
     for mi, m in enumerate(menu['m']):
         for ni,n in enumerate(menu['n']):
-            for t in range(0, s):
+            for t in range(0, s+1):
                 if s in stmn2cnt and t in stmn2cnt[s] and mi in stmn2cnt[s][t] and ni in stmn2cnt[s][t][mi]:
+                    # print(w[t][mi][ni])
                     b_ub_u[ stmn2cnt[s][t][mi][ni] ] = r*w[t][mi][ni]
 
     # assign d
     b_ub_u[-time_horizon+s] = get_d(s)
 
 
-A_ub = np.concatenate( (A_ub_u, A_ub_l) )
-b_ub = np.concatenate( (b_ub_u, b_ub_l) )
-# A_ub = A_ub_u
-# b_ub = b_ub_u
+# A_ub = np.concatenate( (A_ub_u, A_ub_l) )
+# b_ub = np.concatenate( (b_ub_u, b_ub_l) )
+A_ub = A_ub_u
+b_ub = b_ub_u
 
 pd.DataFrame(A_ub).to_csv("A_ub.csv")
 pd.DataFrame(b_ub).to_csv("b_ub.csv")
@@ -246,28 +262,30 @@ Q_reduction = Q[:,R_non_zero]
 # print('R:', np.shape(R_reduction))
 # print('Q:', np.shape(Q_reduction))
 eq_prj = np.linalg.pinv(Q_reduction)
-print(eq_prj.dot(A_eq), eq_prj.dot(b_eq))
+# print(eq_prj.dot(A_eq), eq_prj.dot(b_eq))
 # print(matrix_rank(eq_prj.dot(A_eq)), np.shape(eq_prj.dot(A_eq)))
 
 
-result_prj = linprog(
-    c=-c_lin, 
-    A_eq=eq_prj.dot(A_eq), 
-    b_eq=eq_prj.dot(b_eq), 
-    A_ub=A_ub, 
-    b_ub=b_ub
-    )
+# result_prj = linprog(
+#     c=-c_lin, 
+#     A_eq=eq_prj.dot(A_eq), 
+#     b_eq=eq_prj.dot(b_eq), 
+#     A_ub=A_ub, 
+#     b_ub=b_ub
+#     )
 result = linprog(
     c=-c_lin, 
     A_eq=A_eq, 
     b_eq=b_eq, 
     A_ub=A_ub, 
     b_ub=b_ub,
+    bounds=[0, None],
+    # method='interior-point'
     method='simplex'
     )
 print(result.x)
 print(-result.fun)
-# print(result_prj.x)
+# print(result_prj.fun)
 
 # # construct z_s and the matrix of J^*
 # z_s = {}
@@ -300,6 +318,8 @@ with open('result.json', 'w') as json_file:
     json.dump(y, json_file) 
     
 print(np.sum(e))
+
+# print(A_eq_c.dot(result.x))
 
 
 
