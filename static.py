@@ -16,11 +16,13 @@ import matplotlib.pyplot as plt
 fig, ax = plt.subplots(1, 1)
 
 import json
+import pickle
 import time
 
 # import data
-with open('ev.json') as json_file:
-    EV = json.load(json_file)
+with open('ev.pickle', 'rb') as pickle_file:
+    EV = pickle.load(pickle_file)
+
 
 time_horizon = EV['info']['time_horizon']
 time_arrival_horizon = EV['info']['time_arrival_horizon']
@@ -64,7 +66,8 @@ for t in EV:
     w[s][ EV[t]['m'] ][ EV[t]['n']-1 ] += 1
 
 # print(w)
-
+with open('w.pickle', 'wb') as pickle_file:
+    pickle.dump(w, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
 
 def price_turbulance(s):
     s = s-int(s/24)*24 if s>24 else s
@@ -107,8 +110,10 @@ def get_d(s):
 v = {}
 c = []
 z = {}
+d = []
 for s in range(time_horizon):
     c.append(get_c(s=s))
+    d.append(get_d(s=s))
     v[s] = {}
     # z[s] = {}
     
@@ -120,7 +125,13 @@ for s in range(time_horizon):
                 for ni,n in enumerate(menu['n']):
                     v[s][t][mi][ni] = get_v(s=s, t=0, m=m, n=n)
 
+with open('v.pickle', 'wb') as pickle_file:
+    pickle.dump(v, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
 
+with open('c.pickle', 'wb') as pickle_file:
+    pickle.dump(c, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+with open('d.pickle', 'wb') as pickle_file:
+    pickle.dump(d, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 # print(v)
 
 # construct c_lin, Au_b, b_ub, A_eq, b_eq
@@ -154,6 +165,11 @@ with open('stmn2cnt.json', 'w') as json_file:
     json.dump(stmn2cnt, json_file) 
 with open('cnt2stmn.json', 'w') as json_file:
     json.dump(cnt2stmn, json_file) 
+
+with open('stmn2cnt.pickle', 'wb') as pickle_file:
+    pickle.dump(stmn2cnt, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
+with open('cnt2stmn.pickle', 'wb') as pickle_file:
+    pickle.dump(cnt2stmn, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
 
 # add -c for e_s at end of c_lin
 c_lin = np.concatenate(( np.array(c_lin), np.array(c)*(-1) ))
@@ -235,7 +251,8 @@ for s in range(time_horizon):
                     b_ub_u[ stmn2cnt[s][t][mi][ni] ] = r*w[t][mi][ni]
 
     # assign d
-    b_ub_u[-time_horizon+s] = get_d(s)
+    # b_ub_u[-time_horizon+s] = get_d(s)
+    b_ub_u[-time_horizon+s] = d[s]
 
 
 # A_ub = np.concatenate( (A_ub_u, A_ub_l) )
@@ -255,6 +272,7 @@ pd.DataFrame(b_ub).to_csv("b_ub.csv")
 # # print(np.shape(R))
 # # print(matrix_rank(R[0:rank_R]))
 
+# dimension reduction of A_eq
 # R_reduction = R[np.where(R.any(axis=1))]
 # # print(matrix_rank(R_reduction), np.shape(R_reduction))
 # R_non_zero = np.where(R.any(axis=1))[0]
@@ -268,28 +286,28 @@ pd.DataFrame(b_ub).to_csv("b_ub.csv")
 
 # s_time = time.time()
 # result_prj = linprog(
-#     c=-c_lin, 
-#     A_eq=eq_prj.dot(A_eq), 
-#     b_eq=eq_prj.dot(b_eq), 
-#     A_ub=A_ub, 
-#     b_ub=b_ub,
-#     bounds=[0, None],
-#     method='interior-point'
-#     # method='simplex'
+#         c=-c_lin, 
+#         A_eq=eq_prj.dot(A_eq), 
+#         b_eq=eq_prj.dot(b_eq), 
+#         A_ub=A_ub, 
+#         b_ub=b_ub,
+#         bounds=[0, None],
+#         method='interior-point'
+#         # method='simplex'
 #     )
 # e_time = time.time()
 # t1 = e_time - s_time
 
 # s_time = time.time()
 result = linprog(
-    c=-c_lin, 
-    A_eq=A_eq, 
-    b_eq=b_eq, 
-    A_ub=A_ub, 
-    b_ub=b_ub,
-    bounds=[0, None],
-    # method='interior-point'
-    method='simplex'
+        c=-c_lin, 
+        A_eq=A_eq, 
+        b_eq=b_eq, 
+        A_ub=A_ub, 
+        b_ub=b_ub,
+        bounds=[0, None],
+        # method='interior-point'
+        method='simplex'
     )
 # e_time = time.time()
 # t2 = e_time - s_time
@@ -326,13 +344,22 @@ for cnt in cnt2stmn:
             
     y[s][t][m][n] = result.x[cnt]
 e = result.x[-time_horizon:]
+
 # print(y, e)
-res = {
+result_json_output = {
+    'y': y,
+    'e': list(e)
+}
+result_pickle_output = {
     'y': y,
     'e': e
 }
+
 with open('result.json', 'w') as json_file:
-    json.dump(y, json_file) 
+    json.dump(result_json_output, json_file) 
+    
+with open('result.pickle', 'wb') as pickle_file:
+    pickle.dump(result_pickle_output, pickle_file) 
     
 # print(np.sum(e))
 

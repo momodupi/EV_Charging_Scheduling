@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 import json
+import pickle
 
 # set the time_horizon horizon
 time_horizon = 24
@@ -115,3 +116,6 @@ for t in toss:
 
 with open('ev.json', 'w') as json_file:
     json.dump(EV, json_file) 
+with open('ev.pickle', 'wb') as pickle_file:
+    pickle.dump(EV, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
+
