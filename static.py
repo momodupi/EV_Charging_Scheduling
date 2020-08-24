@@ -82,7 +82,6 @@ def get_v(s,t,m,n):
     fix s,m: linear with n\\
     fix m,n: gamma with (-5,10)
     '''
-    # base_price = 0.12 # $/kWh
     base_price = 0.11 # $/kWh
     # return ((m*menu_m_step) * base_price)/(1+n/100)
 
