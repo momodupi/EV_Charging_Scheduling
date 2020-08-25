@@ -8,9 +8,9 @@ from numpy.linalg import matrix_rank
 
 from scipy.optimize import linprog
 from scipy.linalg import null_space
-
-
 from scipy.stats import gamma
+
+from cvxopt import matrix, solvers
 
 import matplotlib.pyplot as plt
 fig, ax = plt.subplots(1, 1)
@@ -18,6 +18,9 @@ fig, ax = plt.subplots(1, 1)
 import json
 import pickle
 import time
+
+
+np.set_printoptions(threshold=sys.maxsize)
 
 # import data
 with open('ev.pickle', 'rb') as pickle_file:
@@ -54,18 +57,23 @@ w = {}
 for t in range(time_horizon):
     w[t] = np.zeros(shape=(menu_m_size,menu_n_size))
 
-for t in EV:
+for index in EV:
     # tran t to time
-    s = int( int(t)*time_arrival_ratio )
+    t = EV[index]['arrive']
+    # s = int( int(t)*time_arrival_ratio 
+
     # print(s)
     # if s in w:
     #     w[s].append( EV[t] )
     # else:
     #     w[s] = [ EV[t] ] 
     # print( EV[t]['m'], EV[t]['n'] )
-    w[s][ EV[t]['m'] ][ EV[t]['n']-1 ] += 1
+    w[t][ EV[index]['m'] ][ EV[index]['n'] ] += 1
 
 # print(w)
+
+
+
 with open('w.pickle', 'wb') as pickle_file:
     pickle.dump(w, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
 
@@ -103,7 +111,7 @@ def get_c(s):
 
 
 def get_d(s):
-    return 2000 # kWh
+    return 2000. # kWh
 
 # set all v,c,z
 v = {}
@@ -190,9 +198,12 @@ for s in range(time_horizon):
                     continue
                 A_eq_e[s][ stmn2cnt[s][t][mi][ni] ] = 1
 b_eq_e = np.zeros(time_horizon)
+# print(b_eq_e)
+
 
 # print(A_eq_e)
 pd.DataFrame(A_eq_e).to_csv("A_eq_e.csv")
+pd.DataFrame(b_eq_e).to_csv("b_eq_e.csv")
 
 # print(A_ub_e)
 b_eq_c = np.zeros(time_horizon*menu_m_size*menu_n_size)
@@ -204,7 +215,7 @@ for t in range(0, time_horizon):
     for mi, m in enumerate(menu['m']):
         for ni,n in enumerate(menu['n']):
             # constraint, this should be n
-            for s in range(t, t+n+1):
+            for s in range(t, t+n):
                 # if stmn in the dic
                 # print(s,t,mi,ni)
                 # if s in stmn2cnt and t in stmn2cnt[s] and mi in stmn2cnt[s][t] and ni in stmn2cnt[s][t][mi]:
@@ -218,6 +229,7 @@ for t in range(0, time_horizon):
             # m_ceil = (int(m/r))*r
             b_eq_c[A_eq_c_cnt] = m*w[t][mi][ni]
             A_eq_c_cnt += 1
+
 
 # np.set_printoptions(threshold=sys.maxsize)
 pd.DataFrame(A_eq_c).to_csv("A_eq_c.csv")
@@ -238,8 +250,8 @@ pd.DataFrame(b_eq).to_csv("b_eq.csv")
 
 A_ub_u = np.eye(ye_size)
 b_ub_u = np.zeros(ye_size)
-# A_ub_l = -np.eye(ye_size)
-# b_ub_l = np.zeros(ye_size)
+A_ub_l = -np.eye(ye_size)
+b_ub_l = np.zeros(ye_size)
 
 for s in range(time_horizon):
     for mi, m in enumerate(menu['m']):
@@ -262,7 +274,7 @@ b_ub = b_ub_u
 pd.DataFrame(A_ub).to_csv("A_ub.csv")
 pd.DataFrame(b_ub).to_csv("b_ub.csv")
 
-# # lambdas, V = np.linalg.eig(A_eq.T)
+
 # # print(np.shape(A_eq))
 # Q, R = np.linalg.qr(A_eq)
 # # print(np.shape(R))
@@ -271,7 +283,7 @@ pd.DataFrame(b_ub).to_csv("b_ub.csv")
 # # print(np.shape(R))
 # # print(matrix_rank(R[0:rank_R]))
 
-# dimension reduction of A_eq
+# # dimension reduction of A_eq
 # R_reduction = R[np.where(R.any(axis=1))]
 # # print(matrix_rank(R_reduction), np.shape(R_reduction))
 # R_non_zero = np.where(R.any(axis=1))[0]
@@ -281,21 +293,27 @@ pd.DataFrame(b_ub).to_csv("b_ub.csv")
 # # print('Q:', np.shape(Q_reduction))
 # eq_prj = np.linalg.pinv(Q_reduction)
 # # print(eq_prj.dot(A_eq), eq_prj.dot(b_eq))
-# # print(matrix_rank(eq_prj.dot(A_eq)), np.shape(eq_prj.dot(A_eq)))
 
-# s_time = time.time()
+# print(matrix_rank(A_eq), np.shape(A_eq))
+# print(matrix_rank(eq_prj.dot(A_eq)), np.shape(eq_prj.dot(A_eq)))
+
+
+
+# # s_time = time.time()
 # result_prj = linprog(
 #         c=-c_lin, 
 #         A_eq=eq_prj.dot(A_eq), 
 #         b_eq=eq_prj.dot(b_eq), 
 #         A_ub=A_ub, 
 #         b_ub=b_ub,
-#         bounds=[0, None],
-#         method='interior-point'
-#         # method='simplex'
+#         # bounds=[0, None],
+#         # method='interior-point'
+#         method='simplex'
 #     )
-# e_time = time.time()
-# t1 = e_time - s_time
+# # e_time = time.time()
+# # t1 = e_time - s_time
+
+# print(result_prj.x)
 
 # s_time = time.time()
 result = linprog(
@@ -304,20 +322,46 @@ result = linprog(
         b_eq=b_eq, 
         A_ub=A_ub, 
         b_ub=b_ub,
-        bounds=[0, None],
-        # method='interior-point'
-        method='simplex'
+        bounds=[0., None],
+        method='interior-point',
+        # method='simplex'
+        options={
+            'lstsq': True,
+            'presolve': True
+        }
     )
 # e_time = time.time()
 # t2 = e_time - s_time
 
-print(result.x)
+# c = matrix(-c_lin)
+# G = matrix(A_ub)
+# h = matrix(b_ub)
+# A = matrix(A_eq)
+# b = matrix(b_eq)
+
+# sol = solvers.lp(c=c, G=G, h=h, A=A, b=b)
+
+# class Result(object):
+#     def __init__(self, sol):
+#         self.sol = sol
+#         self.x = np.array(sol['x'])
+#         self.fun = np.array(sol['y'])
+        
+# result = Result(sol)
+
+print(result.x[:-time_horizon])
+print(result.x[-time_horizon:])
 # print(result_prj.x)
 # print(result_prj.x==result.x)
 print(-result.fun)
 # print(-result_prj.fun)
 # print(np.allclose(result.x, result_prj.x))
 # print(t1, t2)
+print(np.all((np.abs(A_eq_e.dot(result.x)-b_eq_e) <10e-4)))
+print(np.all((np.abs(A_eq_c.dot(result.x)-b_eq_c) <10e-4)))
+print(-c_lin.dot(result.x))
+
+pd.DataFrame(np.array( [A_eq.dot(result.x), b_eq] )).to_csv("test_eq_c.csv")
 
 
 
@@ -342,7 +386,7 @@ for cnt in cnt2stmn:
         y[s][t][m] = {}
             
     y[s][t][m][n] = result.x[cnt]
-e = result.x[-time_horizon:]
+e = result.x[-time_horizon:-1]
 
 # print(y, e)
 result_json_output = {
@@ -362,7 +406,7 @@ with open('result.pickle', 'wb') as pickle_file:
     
 # print(np.sum(e))
 
-# print(A_eq_c.dot(result.x))
+# print(A_eq.dot(result.x)-b_eq)
 
 
 

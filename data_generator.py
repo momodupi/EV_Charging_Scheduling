@@ -14,7 +14,7 @@ time_unit_set = {
 }
 time_unit = 'hour'
 # arrival horizon unit is smaller than time horizon
-time_arrival_horizon = time_horizon*time_unit_set['min']
+time_arrival_horizon = time_horizon*time_unit_set['sec']
 time_arrival_ratio = time_horizon/time_arrival_horizon
 
 # set the seed
@@ -25,12 +25,11 @@ EV = {}
 
 # Poisson arrival
 arrival_rate = 20
-prob = 1 - np.exp( - arrival_rate/time_unit_set[time_unit] ) 
-prob_set = [prob] * time_arrival_horizon
-# print(prob_set)
+prob = 1 - np.exp( - arrival_rate*time_arrival_ratio ) 
+prob_set = np.array( [prob] * time_arrival_horizon )
 
 # generate passengers
-# np.random.seed(seed)
+np.random.seed(seed)
 randomness = np.random.uniform(low=0, high=1, size=(time_arrival_horizon,))
 
 # data info
@@ -38,8 +37,8 @@ charge_rate = 10 # in kW
 bat_cap = 50 # in Kwh
 
 # set the size of menu
-menu_m_size = 3
-menu_n_size = 3
+menu_m_size = 5
+menu_n_size = 4
 menu_m_range = bat_cap
 # menu_n_range = time_arrival_horizon
 
@@ -52,8 +51,8 @@ menu_n_step = 1
 #     'n': np.arange(1, menu_m_size, 1)
 # }
 menu = {
-    'm': range(menu_m_step, menu_m_range, menu_m_step),
-    'n': range(1, menu_m_size+1, menu_n_step)
+    'm': range(menu_m_step, menu_m_range+1, menu_m_step),
+    'n': range(1, menu_n_size+1, menu_n_step)
 }
 
 
@@ -73,13 +72,18 @@ EV['info'] = {
 }
 
 
-toss = np.where( np.greater(prob_set, randomness) )[0]
+# toss = np.where( np.greater(prob_set, randomness) )[0]
 # print(randomness)
 # print(toss)
 ev_id = 0
-for t in toss:
+EV_csv = []
+
+# for index, t in enumerate(toss):
+for index,r in enumerate(randomness):
     # EV[int(t)] = {}
     # print(soc, flx)
+    if r > prob:
+        continue
     soc = float(np.random.uniform(low=0.3, high=0.9, size=1))
     demand = bat_cap * (1-soc)
     menu_m = int(demand / menu_m_step)
@@ -94,14 +98,14 @@ for t in toss:
     menu_n = int(np.random.choice(range(charge_time-1, menu_n_size, 1)))
     # print(menu_n)
 
-    arrive_time = int(t/time_unit_set['min'])
+    arrive_time = int(index/time_unit_set['sec'])
     leave_time = arrive_time+menu['n'][menu_n]
 
     # print(demand, menu_m, lax, menu_n)
     if leave_time >= time_horizon:
         continue
 
-    EV[int(t)] = {
+    EV[index] = {
         'id': ev_id,
         'soc': soc,
         # 'laxity': lax,
@@ -111,11 +115,15 @@ for t in toss:
         'm': menu_m,
         'n': menu_n
     }
+
+    EV_csv.append(EV[index])
     ev_id += 1
 
 
 with open('ev.json', 'w') as json_file:
     json.dump(EV, json_file) 
+    pd.DataFrame.from_dict(EV_csv).to_csv('EV.csv')
 with open('ev.pickle', 'wb') as pickle_file:
     pickle.dump(EV, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
+
 
