@@ -80,15 +80,21 @@ def bootstrapping(x, z):
 
 X = 1000
 
+# x = np.array(
+#     [
+#         np.linspace(0,10,X),
+#         2*np.linspace(0,10,X)
+#     ]
+# )
 x = np.array(
     [
-        np.linspace(0,10,X),
-        2*np.linspace(0,10,X)
+        np.random.uniform(0,10,X),
+        np.random.uniform(0,20,X),
     ]
 )
 z = np.zeros(len(x[0,:]))
 for i,_z in enumerate(z):
-    z[i] = ( np.sum(x[:,i]) )**2
+    z[i] = ( np.sum(x[:,i]) )**1.3
 
 # bagging
 K = 10
@@ -137,18 +143,24 @@ def bagging(x, z):
     # print(result)
     return result.x
 
+s_time = time.time()
 alpha = bagging(x, z)
+bagging_dur = time.time()-s_time
 
 # for i in range(len(z)):
 #     print(phi_quadratic_bagging(x[:,i], Qk, bk, alpha), z[i])
 
+s_time = time.time()
 Q,b = bootstrapping(x,z)
+boosts_dur = time.time()-s_time
 
 boosts_err = 0
 bagging_err = 0
 for i in range(len(z)):
-    bagging_err += (phi_quadratic_bagging(x[:,i], Qk, bk, alpha)-z[i])**2
     boosts_err += (phi_quadratic(x[:,i], Q, b) - z[i])**2
+    bagging_err += (phi_quadratic_bagging(x[:,i], Qk, bk, alpha)-z[i])**2
+    
     # print(phi_quadratic_bagging(x[:,i], Qk, bk, alpha) - z[i])
 
-print(boosts_err, bagging_err)
+print(f'error: booststrapping: {boosts_err}, bagging: {bagging_err}')
+print(f'time: booststrapping: {boosts_dur}, bagging: {bagging_dur}')
