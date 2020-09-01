@@ -97,7 +97,7 @@ for mi,m in enumerate(menu['m']):
     for ni,n in enumerate(menu['n']):
         for t in range(time_horizon):
             
-            z[t][t][mi][ni] = int(m*w[t][mi][ni])
+            z[t][t][mi][ni] = float(m*w[t][mi][ni])
             
             u_s = t+n if t+n<=time_horizon else time_horizon
 
@@ -109,6 +109,25 @@ for mi,m in enumerate(menu['m']):
                 
 with open('z.json', 'w') as json_file:
     json.dump(z, json_file)
+
+z_xlse = pd.ExcelWriter('z.xlsx', engine='xlsxwriter')
+# y_df = []
+for s in z:
+    # y_df_s = {'arrive time': [t for t in range(time_horizon)]}
+    z_df_s = {}
+    for t in z[s]:
+        # y_df_s['arrive time'].append(int(t))
+        for mi in z[s][t]:
+            for ni in z[s][t][mi]:
+                if ni in z[s][t][mi]:
+                    if f'({menu["m"][mi]},{menu["n"][ni]})' not in z_df_s:
+                        z_df_s[f'({menu["m"][mi]},{menu["n"][ni]})'] = np.zeros(time_horizon)
+                    z_df_s[f'({menu["m"][mi]},{menu["n"][ni]})'][t] = z[s][t][mi][ni]
+
+    z_df_s = pd.DataFrame(z_df_s)
+    z_df_s.to_excel(z_xlse, sheet_name=f'time={s}')
+z_xlse.save()
+            
 
 
 class Result(object):
@@ -146,14 +165,14 @@ def dp_s(s, lag_s):
     # print(c_lin)
     ye_size = y_size + 1 
 
-    # if lag_s != None:
-    #     for i,tmn in enumerate(cnt2tmn):
-    #         t,mi,ni = tmn
-    #         if r*w[t][mi][ni] >= z[s+1][t][mi][ni]:
-    #             if t in lag_s and mi in lag_s[t] and ni in lag_s[t][mi]:
-    #                 # print(t,m,n,i)
-    #                 c_lin[i] = c_lin[i] + lag_s[t][mi][ni]
-    #     c_lin[-1] = c_lin[-1] + lag_s['e']
+    if lag_s != None:
+        for i,tmn in enumerate(cnt2tmn):
+            t,mi,ni = tmn
+            if r*w[t][mi][ni] >= z[s+1][t][mi][ni]:
+                if t in lag_s and mi in lag_s[t] and ni in lag_s[t][mi]:
+                    # print(t,m,n,i)
+                    c_lin[i] = c_lin[i] + lag_s[t][mi][ni]
+        c_lin[-1] = c_lin[-1] + lag_s['e']
 
     # print(c_lin)
     # c_lin = np.ones(ye_size)
@@ -171,24 +190,15 @@ def dp_s(s, lag_s):
     b_ub = np.zeros(ye_size)
 
     for i,tmn in enumerate(cnt2tmn):
-        # print(tmn, s)
-        # print(z[s][tmn[0]])
-        # b_ub[i] = np.min( r*w[tmn[0]][tmn[1]][tmn[2]], z[s][tmn[0]][tmn[1]][tmn[2]] )
-        b_ub_u[i] = min( r*w[tmn[0]][tmn[1]][tmn[2]], z[s][tmn[0]][tmn[1]][tmn[2]] )
+        t,mi,ni = tmn
+        if s+1 in z:
+            b_ub_u[i] = min( r*w[t][mi][ni], z[s][t][mi][ni] )
         
     b_ub_u[-1] = d[s]
 
     A_ub = np.concatenate( (A_ub_u, A_ub_l) )
     b_ub = np.concatenate( (b_ub_u, b_ub_l) )
-    # result = linprog(
-    #         c=-c_lin,
-    #         A_eq=A_eq,
-    #         b_eq=b_eq,
-    #         A_ub=A_ub,
-    #         b_ub=b_ub,
-    #         bounds=[0,None],
-    #         method='interior-point'
-    #     )
+
     '''
     use CVXOPT can directly get lagrange
     '''
@@ -204,8 +214,8 @@ def dp_s(s, lag_s):
     solvers.options['glpk'] = {'msg_lev': 'GLP_MSG_OFF'}
     solvers.options['msg_lev'] = 'GLP_MSG_OFF'
     solvers.options['LP_K_MSGLEV'] = 0
-    solvers.options['abstol'] = 1e-3
-    solvers.options['reltol'] = 1e-2
+    solvers.options['abstol'] = 1e-4
+    solvers.options['reltol'] = 1e-4
     solvers.options['feastol'] = 1
     solvers.options['refinement'] = 1
 
@@ -230,19 +240,6 @@ for _s in range(1,time_horizon+1):
         lag_s = lag[s+1]
     else:
         lag_s = None
-    
-    # if s+1 in cnt2tmn:
-    #     tmn2cnt_s = {}
-    #     for i,tmn in enumerate(cnt2tmn[s+1]):
-    #         t, m, n = tmn
-    #         if t not in tmn2cnt_s:
-    #             tmn2cnt_s[t] = {}
-    #         if m not in tmn2cnt_s[t]:
-    #             tmn2cnt_s[t][m] = {}
-    #         tmn2cnt_s[t][m][n] = i
-    #         # print(tmn2cnt_s)
-    # else:
-    #     tmn2cnt_s = None
 
     result[s], cnt2tmn = dp_s(s, lag_s)
     # print(cnt2tmn)
@@ -281,7 +278,6 @@ for s in ye:
         # y_df_s['arrive time'].append(int(t))
         for mi in ye[s][t]:
             for ni in ye[s][t][mi]:
-                
                 if ni in ye[s][t][mi]:
                     if f'({menu["m"][mi]},{menu["n"][ni]})' not in y_df_s:
                         y_df_s[f'({menu["m"][mi]},{menu["n"][ni]})'] = np.ones(time_horizon)*(-1)

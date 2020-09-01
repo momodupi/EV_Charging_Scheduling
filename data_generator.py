@@ -37,8 +37,8 @@ charge_rate = 10 # in kW
 bat_cap = 50 # in Kwh
 
 # set the size of menu
-menu_m_size = 6
-menu_n_size = 6
+menu_m_size = 4
+menu_n_size = 4
 menu_m_range = bat_cap
 # menu_n_range = time_arrival_horizon
 
@@ -84,7 +84,7 @@ for index,r in enumerate(randomness):
     # print(soc, flx)
     if r > prob:
         continue
-    soc = float(np.random.uniform(low=0.2, high=1.0, size=1))
+    soc = float(np.random.uniform(low=0.2, high=0.8, size=1))
     demand = bat_cap * (1-soc)
     menu_m = int(demand / menu_m_step)
 
@@ -93,7 +93,7 @@ for index,r in enumerate(randomness):
     # for n=3, we assume that the laxity = [1,2,3]
     charge_time = int(demand/charge_rate + 1)
     # print(charge_time)
-    if charge_time > menu['n'][-1]:
+    if charge_time >= menu['n'][-1]:
         continue
     menu_n = int(np.random.choice(range(charge_time, menu_n_size, 1)))
     # print(menu_n)
@@ -120,10 +120,12 @@ for index,r in enumerate(randomness):
     ev_id += 1
 
 
-with open('ev.json', 'w') as json_file:
+with open('cache/ev.json', 'w') as json_file:
     json.dump(EV, json_file) 
-    pd.DataFrame.from_dict(EV_csv).to_csv('EV.csv')
-with open('ev.pickle', 'wb') as pickle_file:
+
+pd.DataFrame.from_dict(EV_csv).to_csv('cache/EV.csv')
+
+with open('cache/ev.pickle', 'wb') as pickle_file:
     pickle.dump(EV, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
 
 

@@ -4,3 +4,8 @@
 *.csv
 *.xlsx
 *.pickle
+static copy.py
+test.py
+approximator copy.py
+Dynamic copy.py
+*.pyc
