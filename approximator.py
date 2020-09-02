@@ -10,157 +10,145 @@ from scipy.optimize import linprog
 from scipy.optimize import minimize
 from scipy.linalg import null_space
 
+from sklearn import svm
 
-from scipy.stats import gamma
-
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots(1, 1)
 
 import json
 import pickle
 import time
+import copy 
 
+import logging
 
-    
-def phi_quadratic(x, Q, b):
-    return  x.T.dot(Q.dot(x))+b.T.dot(x)
+class Approximator(object):
+    def __init__(self, method='quadratic'):
+        self.method = method
+        
+        self.kernel = {
+            'quadratic': self.phi_quadratic,
+        }
 
+        self.theta = {
+            'quadratic': self.theta_quadratic,
+        }
 
-def bootstrapping(x, z):
-    p_0 = np.zeros(shape=((len(x[:,0])+1)*len(x[:,0]),1))
-    # print(p_0)
-    K = len(x[0,:])
+        self.parameter = {}
 
-    def phi_dist_boosts(p):
-        _p = p.reshape( (len(x[:,0])+1, len(x[:,0])) )
+    def theta_quadratic(self, p, x_size):
+        _p = p.reshape( (x_size+1, x_size) )
         Q = _p[:-1,:]
         b = _p[-1,:]
-        # print(Q, b)
-        # return norm( (phi_quadratic(Q, b) - z), 2)
-        # return (phi_quadratic(x, Q, b) - z)**2
-        sum_dist = 0
+        self.parameter = {
+            'Q': Q,
+            'b': b
+        }
+
+    def phi_quadratic(self, x):
+        _x = x[0]
+        Q = self.parameter['Q']
+        b = self.parameter['b']
+        return _x.T.dot(Q.dot(_x))+b.T.dot(_x)
+
+    def bootstrapping(self, x, z):
+        p_0 = np.zeros(shape=((len(x[:,0])+1)*len(x[:,0]),1))
+        # print(p_0)
+        K = len(x[0,:])
+        x_size = len(x[:,0])
+
+        def phi_dist_boosts(p):
+            sum_dist = 0
+            for k in range(K):
+                self.theta[self.method](p, x_size)
+                phi = self.kernel[self.method]( [x[:,k]] )
+                
+                sum_dist += (phi - z[k])**2
+            
+            return sum_dist/K
+        
+        result = minimize(phi_dist_boosts, p_0, method='CG')
+        # print(result)
+        # return result.x
+        self.theta[self.method](result.x, x_size)
+
+        # return self.theta_quadratic(result.x, x_size)
+        return self.kernel[self.method]
+
+    def bagging(self, x, z, sets):
+        xk = {}
+        zk = {}
+        for k in range(sets):
+            xk[k] = []
+            zk[k] = []
+
+        K = len(x[0,:])
         for k in range(K):
-            sum_dist += (phi_quadratic(x[:,k], Q, b) - z[k])**2
-        return sum_dist/K
+            i = np.random.choice(range(sets))
+            xk[i].append(x[:,k])
+            zk[i].append(z[k])
+
+        self.cur = []
+        for i in range(sets):
+            _x = np.array(xk[i]).T
+            _z = np.array(zk[i])
+            # print(_x,_z)
+            _cur = copy.deepcopy( self.bootstrapping(_x, _z) )
+            self.cur.append(_cur)
+
+        self.alpha = np.ones(sets)
+        
+        def phi_bagging(x):
+            phi_hat = np.zeros(sets)
+            for i in range(sets):
+                phi_hat[i] = self.cur[i]( x )
+            return self.alpha.dot( phi_hat )
+
+        alpha_0 = np.ones(sets)
+
+        def phi_dist_bagging(alpha):
+            dist_sum = 0
+            self.alpha = alpha
+            for k in range(K):
+                dist_sum += ( phi_bagging( [x[:,k]] ) - z[k])**2
+                # print(dist_sum)
+            return dist_sum
+
+        result = minimize(phi_dist_bagging, alpha_0, method='CG')
+        self.alpha = result.x
+        return phi_bagging
+
     
-    result = minimize(phi_dist_boosts, p_0, method='CG')
-    # print(result)
-    # return result.x
-    res = result.x.reshape( (len(x)+1, len(x)) )
-    Q = res[:-1,:]
-    b = res[-1,:]
-    return Q, b
+    def sklearn_svm(self, x, z):
+        regr = svm.SVR(kernel='poly', degree=2, gamma='auto', tol=10-6)
+        regr.fit(x.T, z)
+        # regr.fit([[0, 0], [2, 2], [1,3]], [0.5,2.5,3])
+        return regr.predict
 
 
-
-# x = np.array( [[1,2,3,4,5], [5,6,7,8,9]] )
+# X = 1000
 
 # x = np.array(
 #     [
-#         np.linspace(0,10,1000),
-#         2*np.linspace(0,10,1000)
+#         np.random.uniform(0,10,X),
+#         np.random.uniform(0,20,X),
 #     ]
 # )
 # z = np.zeros(len(x[0,:]))
+
 # for i,_z in enumerate(z):
-#     z[i] = ( np.sum(x[:,i]) )**1.3
+#     z[i] = ( np.sum(x[:,i]) )**2
+#     # z[i] = np.sum(x[:,i])
 
+# ap = Approximator()
+# # cur = ap.bootstrapping(x,z)
+# cur = ap.sklearn_svm(x,z)
+# # cur = ap.bagging(x,z, 10)
 
-
-# print(x,z)
-# res = bootstrapping(x,z)
-# res = res.reshape( (len(x)+1, len(x)) )
-# Q = res[:-1,:]
-# b = res[-1,:]
-
-# # print(x.T.dot(Q.dot(x))+b.T.dot(x), z)
+# # regr = ap.sklearn_svm(x,z)
+# # print(regr.predict([[1,1]]))
+# boosts_err = 0
 # for i in range(len(z)):
-#     print(x[:,i].T.dot(Q.dot(x[:,i]))+b.T.dot(x[:,i]), z[i])
+#     # boosts_err += ( regr.predict( [x[:,i]] ) - z[i])**2
+#     # boosts_err += ( ap.kernel[ap.method]( _x, r) - z[i])**2
+#     boosts_err += ( cur([x[:,i]]) - z[i])**2
 
-
-X = 1000
-
-# x = np.array(
-#     [
-#         np.linspace(0,10,X),
-#         2*np.linspace(0,10,X)
-#     ]
-# )
-x = np.array(
-    [
-        np.random.uniform(0,10,X),
-        np.random.uniform(0,20,X),
-    ]
-)
-z = np.zeros(len(x[0,:]))
-for i,_z in enumerate(z):
-    z[i] = ( np.sum(x[:,i]) )**1.3
-
-# bagging
-K = 10
-xk = {}
-zk = {}
-for k in range(K):
-    xk[k] = []
-    zk[k] = []
-
-for i in range(X):
-    k = np.random.choice(range(K))
-    xk[k].append(x[:,i])
-    zk[k].append(z[i])
-
-
-Qk = {}
-bk = {}
-for k in range(K):
-    _x = np.array(xk[k]).T
-    _z = np.array(zk[k])
-    Qk[k], bk[k] = bootstrapping(_x, _z)
-
-
-
-def phi_quadratic_bagging(x, Q, b, alpha):
-    k_size = len(alpha)
-    phi_hat = np.zeros(k_size)
-    for k in range(k_size):
-        phi_hat[k] = phi_quadratic( x, Q[k], b[k] )
-    return alpha.dot( phi_hat )
-
-def bagging(x, z):
-    alpha_0 = np.ones(K)
-    
-    def phi_dist_bagging(alpha):
-        dist_sum = 0
-
-        for i in range(X):
-            _x = x[:,i]
-            _z = z[i]
-            dist_sum += (phi_quadratic_bagging(_x, Qk, bk, alpha) - _z)**2
-            # print(dist_sum)
-        return dist_sum
-
-    result = minimize(phi_dist_bagging, alpha_0, method='CG')
-    # print(result)
-    return result.x
-
-s_time = time.time()
-alpha = bagging(x, z)
-bagging_dur = time.time()-s_time
-
-# for i in range(len(z)):
-#     print(phi_quadratic_bagging(x[:,i], Qk, bk, alpha), z[i])
-
-s_time = time.time()
-Q,b = bootstrapping(x,z)
-boosts_dur = time.time()-s_time
-
-boosts_err = 0
-bagging_err = 0
-for i in range(len(z)):
-    boosts_err += (phi_quadratic(x[:,i], Q, b) - z[i])**2
-    bagging_err += (phi_quadratic_bagging(x[:,i], Qk, bk, alpha)-z[i])**2
-    
-    # print(phi_quadratic_bagging(x[:,i], Qk, bk, alpha) - z[i])
-
-print(f'error: booststrapping: {boosts_err}, bagging: {bagging_err}')
-print(f'time: booststrapping: {boosts_dur}, bagging: {bagging_dur}')
+# print(boosts_err)

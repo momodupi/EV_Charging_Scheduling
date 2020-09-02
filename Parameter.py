@@ -57,6 +57,9 @@ class Parameter(object):
 
         self.stmn2cnt = {}
         self.cnt2stmn = {}
+
+        self.tmn2cnt_s = {}
+        self.cnt2tmn_s = {}
         '''
         Note: 
         t in [s-n+1, s]
@@ -97,10 +100,11 @@ class Parameter(object):
 
         self.total_demand = 0
 
-        self.w = {}
-        self.c = []
-        self.d = []
-        self.v = {}
+        self.w = None
+        self.c = None
+        self.d = None
+        self.v = None
+        self.z = None
 
         self.c_lin = None
         self.A_eq_e = None
@@ -122,7 +126,7 @@ class Parameter(object):
         logging.debug('parameter: v')
         self.v = self.get_v()
 
-        
+        self.lags = {}
 
 
     def get_w(self):
@@ -145,17 +149,18 @@ class Parameter(object):
 
         # print(w)
         # reform w to csv
-        w_csv = { }
-        for mi,m in enumerate(self.menu['m']):
-            for ni,n in enumerate(self.menu['n']):
-                w_csv[f'({m},{n})'] = []
-                for t in self.w:
-                    w_csv[f'({m},{n})'].append(int(self.w[t][mi][ni]))
-
         if self.readable:
-            d.DataFrame(w_csv).to_csv('cache/w.csv')
+            w_csv = {}
+            for mi,m in enumerate(self.menu['m']):
+                for ni,n in enumerate(self.menu['n']):
+                    w_csv[f'({m},{n})'] = []
+                    for t in w:
+                        w_csv[f'({m},{n})'].append(int(w[t][mi][ni]))
+
+            pd.DataFrame(w_csv).to_csv('cache/w.csv')
+
         with open('cache/w.pickle', 'wb') as pickle_file:
-            pickle.dump(self.w, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
+            pickle.dump(w, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
         return w
 
     def price_turbulance(self, s):
@@ -279,29 +284,15 @@ class Parameter(object):
         self.A_eq_c = np.zeros(shape=(self.time_horizon*self.menu_m_size*self.menu_n_size, ye_size))
         A_eq_c_cnt = 0
 
-
         for t in range(self.time_horizon):
             for mi,m in enumerate(self.menu['m']):
                 for ni,n in enumerate(self.menu['n']):
-                    # constraint, this should be n
 
-                    # u_s = t+n+1 if t+n+1<=time_horizon else time_horizon
                     u_s = t+n if t+n<=self.time_horizon else self.time_horizon
 
                     for s in range(t, u_s):
-                        # if stmn in the dic
-                        # print(s,t,mi,ni)
-                        # if s in stmn2cnt and t in stmn2cnt[s] and mi in stmn2cnt[s][t] and ni in stmn2cnt[s][t][mi]:
-                        # if t in stmn2cnt[s]:
-                        #     if mi in stmn2cnt[s][t]:
-                        #         if ni in stmn2cnt[s][t][mi]:
-                        # if s in stmn2cnt:
-                        # if t==0:
-                        #     print(s,t,mi,ni, u_s, stmn2cnt[s][t][mi][ni])
                         self.A_eq_c[ A_eq_c_cnt, self.stmn2cnt[s][t][mi][ni] ] = 1
-                            # print(A_ub_c[A_ub_c_cnt])
-                    # m should be the multiple of r
-                    # m_ceil = (int(m/r))*r
+
                     self.b_eq_c[A_eq_c_cnt] = m*self.w[t][mi][ni]
                     A_eq_c_cnt += 1
 
@@ -353,22 +344,146 @@ class Parameter(object):
         return A_ub, b_ub
 
 
+    def get_z(self, ye):
+        z = {}
+        for s in range(self.time_horizon):
+            z[s] = {}
+            for t in range(self.time_horizon):
+                # print(t)
+                z[s][t] = {}
+                for mi,m in enumerate(self.menu['m']):
+                    z[s][t][mi] = {}
 
-    def get_LP(self, s):
-        if s==0:
-            logging.debug('parameter: LP: c')
-            c = self.get_c_lin()
-            logging.debug('parameter: LP: eq')
-            A_eq, b_eq = self.get_eq()
-            logging.debug('parameter: LP: ineq')
-            A_ub, b_ub = self.get_ineq()
-            p_dic = {
-                'c': c,
-                'A_eq': A_eq,
-                'b_eq': b_eq,
-                'A_ub': A_ub,
-                'b_ub': b_ub
-            }
-            return p_dic
-        else:
-            return {}
+        y = ye['y']
+        e = ye['e']
+        for mi,m in enumerate(self.menu['m']):
+            for ni,n in enumerate(self.menu['n']):
+                for t in range(self.time_horizon):
+                    
+                    z[t][t][mi][ni] = float(m*self.w[t][mi][ni])
+                    
+                    u_s = t+n if t+n<=self.time_horizon else self.time_horizon
+
+                    for s in range(t+1, u_s):
+                        z[s][t][mi][ni] = z[s-1][t][mi][ni] - y[s-1][t][mi][ni]
+                        # print(z[s][t][mi][ni])
+                    for s in range(u_s, self.time_horizon):
+                        z[s][t][mi][ni] = 0
+
+        if self.readable:
+            z_xlse = pd.ExcelWriter('cache/z.xlsx', engine='xlsxwriter')
+            for s in z:
+                z_df_s = {}
+                for t in z[s]:
+                    for mi in z[s][t]:
+                        for ni in z[s][t][mi]:
+                            if ni in z[s][t][mi]:
+                                if f'({self.menu["m"][mi]},{self.menu["n"][ni]})' not in z_df_s:
+                                    z_df_s[f'({self.menu["m"][mi]},{self.menu["n"][ni]})'] = np.zeros(self.time_horizon)
+                                z_df_s[f'({self.menu["m"][mi]},{self.menu["n"][ni]})'][t] = z[s][t][mi][ni]
+
+                z_df_s = pd.DataFrame(z_df_s)
+                z_df_s.to_excel(z_xlse, sheet_name=f'time={s}')
+            z_xlse.save()
+
+        with open('cache/z.pickle', 'wb') as pickle_file:
+            pickle.dump(z, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+
+        return z
+
+
+    def get_LP_static(self):
+        logging.debug('parameter: LP: c')
+        c = self.get_c_lin()
+        logging.debug('parameter: LP: eq')
+        A_eq, b_eq = self.get_eq()
+        logging.debug('parameter: LP: ineq')
+        A_ub, b_ub = self.get_ineq()
+        p_dic = {
+            'c': c,
+            'A_eq': A_eq,
+            'b_eq': b_eq,
+            'A_ub': A_ub,
+            'b_ub': b_ub
+        }
+        return p_dic
+
+
+    def get_LP_dynamic(self, ye, s):
+        if self.z == None:
+            self.z = self.get_z(ye)
+        
+        if s not in self.cnt2tmn_s:
+            self.cnt2tmn_s[s] = []
+        
+        c = []
+        for t in range(s-self.menu_n_size+1, s+1):
+            if t < 0:
+                continue
+            for mi,m in enumerate(self.menu['m']):
+                for ni,n in enumerate(self.menu['n']):
+                    c.append( self.v[s][t][mi][ni] )
+                    self.cnt2tmn_s[s].append((t,mi,ni))
+
+        c.append( -self.c[s] )
+        c = np.asarray(c)
+
+        # lagrange
+        if self.lags == None:
+            self.lags = {}
+        if s+1 in self.lags:
+            for i,tmn in enumerate(self.cnt2tmn_s[s]):
+                t,mi,ni = tmn
+                if self.r*self.w[t][mi][ni] >= self.z[s+1][t][mi][ni]:
+                    if t in self.lags[s+1] and mi in self.lags[s+1][t] and ni in self.lags[s+1][t][mi]:
+                        # print(t,m,n,i)
+                        c[i] = c[i] + self.lags[s+1][t][mi][ni]
+            c[-1] = c[-1] + self.lags[s+1]['e']
+
+        A_eq = np.ones(len(c))
+        A_eq[-1] = -1.0
+        A_eq = np.matrix(A_eq)
+        b_eq = 0.0
+
+
+        A_ub_u = np.eye(len(c))
+        b_ub_u = np.zeros(len(c))
+        A_ub_l = -np.eye(len(c))
+        b_ub_l = np.zeros(len(c))
+
+        for i,tmn in enumerate(self.cnt2tmn_s[s]):
+            t,mi,ni = tmn
+            if s+1 in self.z:
+                b_ub_u[i] = min( self.r*self.w[t][mi][ni], self.z[s][t][mi][ni] )
+        
+        b_ub_u[-1] = self.d[s]
+
+        A_ub = np.concatenate( (A_ub_u, A_ub_l) )
+        b_ub = np.concatenate( (b_ub_u, b_ub_l) )
+
+        p_dic = {
+            'c': c,
+            'A_eq': A_eq,
+            'b_eq': b_eq,
+            'A_ub': A_ub,
+            'b_ub': b_ub
+        }
+
+        return p_dic
+
+
+    def input_lagrange(self, s, mu_e, mu_ie):
+        if s not in self.cnt2tmn_s:
+            return 0
+        
+        self.lags[s] = {}
+        for i,tmn in enumerate(self.cnt2tmn_s[s]):
+            t, mi, ni = tmn
+            # print(tmn)
+            if t not in self.lags[s]:
+                self.lags[s][t] = {}
+            if mi not in self.lags[s][t]:
+                self.lags[s][t][mi] = {}
+
+            self.lags[s][t][mi][ni] = float(mu_ie[i])
+            self.lags[s]['e'] = float(mu_ie[-1])

@@ -37,8 +37,8 @@ charge_rate = 10 # in kW
 bat_cap = 50 # in Kwh
 
 # set the size of menu
-menu_m_size = 4
-menu_n_size = 4
+menu_m_size = 6
+menu_n_size = 6
 menu_m_range = bat_cap
 # menu_n_range = time_arrival_horizon
 
