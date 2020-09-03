@@ -7,9 +7,9 @@ import pandas as pd
 from cvxopt import matrix, solvers
 
 
-from Parameter import Parameter
-from Squeeze import Squeeze
-from Result import Result
+from tools.Parameter import Parameter
+from tools.Squeeze import Squeeze
+from tools.Result import Result
 
 import logging
 import json

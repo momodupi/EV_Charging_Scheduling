@@ -140,11 +140,11 @@ class Parameter(object):
                 for ni,n in enumerate(self.menu['n']):
                     w[t][mi][ni] = 0
 
-        for index in self.EV:
+        for ev_id in self.EV:
             # tran t to time
-            t = self.EV[index]['arrive']
-            mi = self.EV[index]['m']
-            ni = self.EV[index]['n']
+            t = self.EV[ev_id]['arrive']
+            mi = self.EV[ev_id]['m']
+            ni = self.EV[ev_id]['n']
             w[t][mi][ni] += 1
 
         # print(w)
@@ -210,6 +210,7 @@ class Parameter(object):
             fix m,n: gamma with (-5,10)
             '''
             base_price = 0.11 # $/kWh
+            # base_price = 0.05 # $/kWh
             # return ((m*menu_m_step) * base_price)/(1+n/100)
 
             '''

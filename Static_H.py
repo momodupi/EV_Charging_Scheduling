@@ -17,9 +17,9 @@ import json
 import pickle
 import time
 
-from Parameter import Parameter
-from Squeeze import Squeeze
-from Result import Result
+from tools.Parameter import Parameter
+from tools.Squeeze import Squeeze
+from tools.Result import Result
 
 
 
@@ -68,7 +68,7 @@ def CVXOPT_LP(c, A_eq, b_eq, A_ub, b_ub):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     np.set_printoptions(threshold=sys.maxsize)
 
     pa = Parameter('cache/ev.pickle', readable=True)
@@ -82,8 +82,8 @@ def main():
     # dimentionality reduction
     sq = Squeeze(A_eq=A_eq, b_eq=b_eq)
 
-    k = int(np.shape(A_eq)[0]/4)+1
-    A_eq, b_eq = sq.Random_Projection(k=k, method='')
+    # k = int(np.shape(A_eq)[0]/4)+1
+    # A_eq, b_eq = sq.Random_Projection(k=k, method='')
 
     s_time = time.time()
     

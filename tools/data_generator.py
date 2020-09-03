@@ -5,7 +5,7 @@ import json
 import pickle
 
 # set the time_horizon horizon
-time_horizon = 48
+time_horizon = 24
 time_unit_set = {
     'hour': 1,
     'min': 60,
@@ -37,8 +37,8 @@ charge_rate = 10 # in kW
 bat_cap = 50 # in Kwh
 
 # set the size of menu
-menu_m_size = 6
-menu_n_size = 6
+menu_m_size = 4
+menu_n_size = 5
 menu_m_range = bat_cap
 # menu_n_range = time_arrival_horizon
 
@@ -84,7 +84,7 @@ for index,r in enumerate(randomness):
     # print(soc, flx)
     if r > prob:
         continue
-    soc = float(np.random.uniform(low=0.2, high=0.8, size=1))
+    soc = float(np.random.uniform(low=0.6, high=0.8, size=1))
     demand = bat_cap * (1-soc)
     menu_m = int(demand / menu_m_step)
 
@@ -105,8 +105,8 @@ for index,r in enumerate(randomness):
     if leave_time >= time_horizon:
         continue
 
-    EV[index] = {
-        'id': ev_id,
+    EV[ev_id] = {
+        # 'id': ev_id,
         'soc': soc,
         # 'laxity': lax,
         'demand': demand,
@@ -116,7 +116,7 @@ for index,r in enumerate(randomness):
         'n': menu_n
     }
 
-    EV_csv.append(EV[index])
+    EV_csv.append(EV[ev_id])
     ev_id += 1
 
 
