@@ -84,7 +84,7 @@ for index,r in enumerate(randomness):
     # print(soc, flx)
     if r > prob:
         continue
-    soc = float(np.random.uniform(low=0.6, high=0.8, size=1))
+    soc = float(np.random.uniform(low=0.3, high=0.8, size=1))
     demand = bat_cap * (1-soc)
     menu_m = int(demand / menu_m_step)
 

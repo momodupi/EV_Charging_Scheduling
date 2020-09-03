@@ -41,6 +41,7 @@ class Parameter(object):
             'm': np.array(EV['info']['m']),
             'n': np.array(EV['info']['n'])
         }
+        pd.DataFrame.from_dict(self.menu, orient='index').to_csv('cache/menu.csv')
 
         self.time_unit_set = {
             'hour': 1,
