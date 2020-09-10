@@ -7,7 +7,7 @@ git clone https://code.osu.edu/shao.367/EV_Charging_Scheduling.git
 ```
 
 ### Install the required packages
-Install packages with [conda](https://docs.conda.io/en/latest/):
+We recommend install the packages with [conda](https://docs.conda.io/en/latest/):
 ```shell
 conda install numpy scipy cvxopt scikit-learn
 ```
