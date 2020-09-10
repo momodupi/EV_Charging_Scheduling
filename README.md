@@ -1,5 +1,16 @@
 # EV_Charging_Scheduling
 
+## Prerequisite
+### Download
+```shell
+git clone https://code.osu.edu/shao.367/EV_Charging_Scheduling.git
+```
+
+### Install the required packages
+Install packages with [conda](https://docs.conda.io/en/latest/):
+```shell
+conda install numpy scipy cvxopt scikit-learn
+```
 
 ## Arrivals
 `Arrivals.py` provides a class that simulates the arrivals of all EVs. The initialization of this class is given by
@@ -138,12 +149,14 @@ will be saved to `results/e_static.csv` (or `results/e_dynamic.csv`).
 
 
 ## Squeeze
-Needed to be improved
+...
 
 
 ## Low Level Scheduling
-Needed to be improved
+...
 
 
 ## Approximator
-Needed to be improved
+...
+
+
