@@ -66,7 +66,7 @@ class Result(object):
         else:
             logging.warning(f'output reform: {y_form}')
 
-        result_output = {
+        self.result_output = {
             'y': y,
             'e': e,
         }
@@ -76,7 +76,7 @@ class Result(object):
         }
 
         with open(f'cache/result_{file}.pickle', 'wb') as pickle_file:
-            pickle.dump(result_output, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
+            pickle.dump(self.result_output, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
         with open(f'cache/cache_{file}.pickle', 'wb') as pickle_file:
             pickle.dump(result_cache, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
 
@@ -91,10 +91,11 @@ class Result(object):
                             if f'({self.pa.menu["m"][mi]},{self.pa.menu["n"][ni]})' not in y_df_s:
                                 y_df_s[f'({self.pa.menu["m"][mi]},{self.pa.menu["n"][ni]})'] = np.ones(self.pa.time_horizon)*(-1)
                             y_df_s[f'({self.pa.menu["m"][mi]},{self.pa.menu["n"][ni]})'][t] = y[s][t][mi][ni]
-
+            
             y_df_s = pd.DataFrame(y_df_s)
+            # print(y_df_s)
             y_df_s.to_excel(y_xlse, sheet_name=f'time={s}')
         y_xlse.save()
 
         pd.DataFrame(e).to_csv(f'results/e_{file}.csv')
-        logging.info(f'Finished!')
+        logging.info(f'data saved to results/y_{file}.xlsx and results/e_{file}.csv!')

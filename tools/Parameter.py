@@ -20,12 +20,8 @@ np.set_printoptions(threshold=sys.maxsize)
 
 
 class Parameter(object):
-    def __init__(self, ev_file, readable=False):
-        # import data
-        with open(ev_file, 'rb') as pickle_file:
-            EV = pickle.load(pickle_file)
-
-
+    def __init__(self, EV, readable=False):
+ 
         self.time_horizon = EV['info']['time_horizon']
         self.time_arrival_horizon = EV['info']['time_arrival_horizon']
         self.time_arrival_ratio = self.time_horizon/ self.time_arrival_horizon
@@ -86,6 +82,7 @@ class Parameter(object):
                         self.stmn2cnt[s][t][mi][ni] = cnt
                         self.cnt2stmn[cnt] = (s,t,mi,ni)
                         cnt += 1
+
         self.readable = readable
         if self.readable:
             with open('cache/stmn2cnt.json', 'w') as json_file:
@@ -290,9 +287,9 @@ class Parameter(object):
             for mi,m in enumerate(self.menu['m']):
                 for ni,n in enumerate(self.menu['n']):
 
-                    u_s = t+n if t+n<=self.time_horizon else self.time_horizon
+                    s_ub = t+n if t+n<=self.time_horizon else self.time_horizon
 
-                    for s in range(t, u_s):
+                    for s in range(t, s_ub):
                         self.A_eq_c[ A_eq_c_cnt, self.stmn2cnt[s][t][mi][ni] ] = 1
 
                     self.b_eq_c[A_eq_c_cnt] = m*self.w[t][mi][ni]
@@ -364,12 +361,12 @@ class Parameter(object):
                     
                     z[t][t][mi][ni] = float(m*self.w[t][mi][ni])
                     
-                    u_s = t+n if t+n<=self.time_horizon else self.time_horizon
+                    s_ub = t+n if t+n<=self.time_horizon else self.time_horizon
 
-                    for s in range(t+1, u_s):
+                    for s in range(t+1, s_ub):
                         z[s][t][mi][ni] = z[s-1][t][mi][ni] - y[s-1][t][mi][ni]
                         # print(z[s][t][mi][ni])
-                    for s in range(u_s, self.time_horizon):
+                    for s in range(s_ub, self.time_horizon):
                         z[s][t][mi][ni] = 0
 
         if self.readable:
@@ -412,23 +409,32 @@ class Parameter(object):
 
 
     def get_LP_dynamic(self, ye, s):
-        if self.z == None:
-            self.z = self.get_z(ye)
+        # if self.z == None:
+        #     self.z = self.get_z(ye)
         
-        if s not in self.cnt2tmn_s:
-            self.cnt2tmn_s[s] = []
+        # if s not in self.cnt2tmn_s:
+        #     self.cnt2tmn_s[s] = []
+        self.get_state(ye, s)
         
         c = []
-        for t in range(s-self.menu_n_size+1, s+1):
-            if t < 0:
-                continue
-            for mi,m in enumerate(self.menu['m']):
-                for ni,n in enumerate(self.menu['n']):
-                    c.append( self.v[s][t][mi][ni] )
-                    self.cnt2tmn_s[s].append((t,mi,ni))
+        # for t in range(s-self.menu_n_size+1, s+1):
+        #     # if t < 0:
+        #     #     continue
+        #     for mi,m in enumerate(self.menu['m']):
+        #         for ni,n in enumerate(self.menu['n']):
+        #             c_t = self.v[s][t][mi][ni] if t>=0 else 0
+        #             c.append(c_t)
+        #             # c.append( self.v[s][t][mi][ni] )
+        #             self.cnt2tmn_s[s].append((t,mi,ni))
+        for i,tmn in enumerate(self.cnt2tmn_s[s]):
+            t,mi,ni = tmn
+
+            c_s = self.v[s][t][mi][ni] if t>=0 else 0
+            c.append( c_s )
 
         c.append( -self.c[s] )
         c = np.asarray(c)
+        
 
         # lagrange
         if self.lags == None:
@@ -436,11 +442,16 @@ class Parameter(object):
         if s+1 in self.lags:
             for i,tmn in enumerate(self.cnt2tmn_s[s]):
                 t,mi,ni = tmn
+
+                if t<0:
+                    continue
+
                 if self.r*self.w[t][mi][ni] >= self.z[s+1][t][mi][ni]:
                     if t in self.lags[s+1] and mi in self.lags[s+1][t] and ni in self.lags[s+1][t][mi]:
                         # print(t,m,n,i)
                         c[i] = c[i] + self.lags[s+1][t][mi][ni]
             c[-1] = c[-1] + self.lags[s+1]['e']
+        
 
         A_eq = np.ones(len(c))
         A_eq[-1] = -1.0
@@ -455,7 +466,7 @@ class Parameter(object):
 
         for i,tmn in enumerate(self.cnt2tmn_s[s]):
             t,mi,ni = tmn
-            if s+1 in self.z:
+            if s+1 in self.z and t>=0:
                 b_ub_u[i] = min( self.r*self.w[t][mi][ni], self.z[s][t][mi][ni] )
         
         b_ub_u[-1] = self.d[s]
@@ -472,6 +483,27 @@ class Parameter(object):
         }
 
         return p_dic
+
+
+    def get_state(self, ye, s):
+        if self.z == None:
+            self.z = self.get_z(ye)
+        
+        if s not in self.cnt2tmn_s:
+            self.cnt2tmn_s[s] = []
+        
+        x = []
+        z = []
+        for t in range(s-self.menu_n_size+1, s+1):
+            for mi,m in enumerate(self.menu['m']):
+                for ni,n in enumerate(self.menu['n']):
+                    x_t = (self.w[t][mi][ni],self.z[s][t][mi][ni]) if t>=0 else (0,0)
+                    x.append( x_t )
+                    self.cnt2tmn_s[s].append((t,mi,ni))
+                    # print(x_t)
+        # print(x)
+        # print(self.cnt2tmn_s[s])
+        return np.array(x)
 
 
     def input_lagrange(self, s, mu_e, mu_ie):

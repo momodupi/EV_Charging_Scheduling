@@ -20,7 +20,7 @@ import time
 from tools.Parameter import Parameter
 from tools.Squeeze import Squeeze
 from tools.Result import Result
-
+from tools.Arrivals import Arrivals
 
 
 
@@ -67,11 +67,13 @@ def CVXOPT_LP(c, A_eq, b_eq, A_ub, b_ub):
     return np.squeeze(np.asarray(result['x']))
 
 
-def main():
-    logging.basicConfig(level=logging.DEBUG)
+def Static_H(info):
+    logging.basicConfig(level=logging.INFO)
     np.set_printoptions(threshold=sys.maxsize)
 
-    pa = Parameter('cache/ev.pickle', readable=True)
+    ar = Arrivals(setting=info)
+
+    pa = Parameter(ar.EV, readable=True)
 
     pa_dic = pa.get_LP_static()
     c = pa_dic['c']
@@ -95,7 +97,23 @@ def main():
     result = Result(pa=pa, x=x, dur=dur)
     result.check()
     result.output('static')
+    return result
 
+
+
+def main():
+
+    info = {
+        'time_horizon': 24,
+        'unit': 'hour',
+        'arrival_rate': 20, #/hour
+        'RoC': 10, #kw
+        'BC': 50, #kwh
+        'm': 5,
+        'n': 5,
+        'seed': 0
+    }
+    Static_H(info)
 
 if __name__ == "__main__":
     main()

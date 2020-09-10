@@ -117,38 +117,54 @@ class Approximator(object):
         return phi_bagging
 
     
-    def sklearn_svm(self, x, z):
-        regr = svm.SVR(kernel='poly', degree=2, gamma='auto', tol=10-6)
+    def sklearn_svm(self, x, z, setting):
+        kernel = setting['kernel']
+        degree = setting['degree']
+        gamma = setting['gamma']
+        tol = setting['tol']
+        regr = svm.SVR(
+            kernel=kernel, 
+            degree=degree, 
+            gamma=gamma, 
+            tol=tol
+            )
         regr.fit(x.T, z)
-        # regr.fit([[0, 0], [2, 2], [1,3]], [0.5,2.5,3])
+
         return regr.predict
 
+    def check(self, cur, x, z):
+        err = 0
+        for i in range(len(z)):
+            err += ( cur([x[:,i]]) - z[i])**2
+        logging.info(f'{err}')
 
-# X = 1000
 
-# x = np.array(
-#     [
-#         np.random.uniform(0,10,X),
-#         np.random.uniform(0,20,X),
-#     ]
-# )
-# z = np.zeros(len(x[0,:]))
 
-# for i,_z in enumerate(z):
-#     z[i] = ( np.sum(x[:,i]) )**2
-#     # z[i] = np.sum(x[:,i])
+def demo(X):
 
-# ap = Approximator()
-# # cur = ap.bootstrapping(x,z)
-# cur = ap.sklearn_svm(x,z)
-# # cur = ap.bagging(x,z, 10)
+    x = np.array(
+        [
+            np.random.uniform(0,10,X),
+            np.random.uniform(0,20,X),
+        ]
+    )
+    z = np.zeros(len(x[0,:]))
 
-# # regr = ap.sklearn_svm(x,z)
-# # print(regr.predict([[1,1]]))
-# boosts_err = 0
-# for i in range(len(z)):
-#     # boosts_err += ( regr.predict( [x[:,i]] ) - z[i])**2
-#     # boosts_err += ( ap.kernel[ap.method]( _x, r) - z[i])**2
-#     boosts_err += ( cur([x[:,i]]) - z[i])**2
+    for i,_z in enumerate(z):
+        z[i] = ( np.sum(x[:,i]) )**2
+        # z[i] = np.sum(x[:,i])
 
-# print(boosts_err)
+    ap = Approximator()
+    cur = ap.bootstrapping(x,z)
+    # cur = ap.sklearn_svm(x,z)
+    # cur = ap.bagging(x,z, 10)
+
+    # regr = ap.sklearn_svm(x,z)
+    # print(regr.predict([[1,1]]))
+    boosts_err = 0
+    for i in range(len(z)):
+        # boosts_err += ( regr.predict( [x[:,i]] ) - z[i])**2
+        # boosts_err += ( ap.kernel[ap.method]( _x, r) - z[i])**2
+        boosts_err += ( cur([x[:,i]]) - z[i])**2
+
+    print(boosts_err)
