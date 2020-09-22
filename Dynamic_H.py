@@ -140,7 +140,7 @@ def Dynamic_Data(data_size=0):
         z[s] = value_s
 
     ap = Approximator()
-    # cur = ap.bootstrapping(x,z)
+    cur = ap.bootstrapping(x,z)
     setting = {
         'kernel': 'poly',
         'degree': 5,
@@ -148,6 +148,12 @@ def Dynamic_Data(data_size=0):
         'tol': 10e-6
     }
     cur = ap.sklearn_svm(x, z, setting)
+
+    # setting = {
+    #     'sets': 1,
+    #     'basis_size': 10,
+    # }
+    # cur = ap.quadratic_random_matrix(x, z, setting)
     ap.check(cur, x, z)
 
 

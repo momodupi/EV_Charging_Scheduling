@@ -49,6 +49,7 @@ class Approximator(object):
         b = self.parameter['b']
         return _x.T.dot(Q.dot(_x))+b.T.dot(_x)
 
+
     def bootstrapping(self, x, z):
         p_0 = np.zeros(shape=((len(x[:,0])+1)*len(x[:,0]),1))
         # print(p_0)
@@ -73,7 +74,9 @@ class Approximator(object):
         # return self.theta_quadratic(result.x, x_size)
         return self.kernel[self.method]
 
-    def bagging(self, x, z, sets):
+
+    def bagging(self, x, z, setting):
+        sets = setting['set']
         xk = {}
         zk = {}
         for k in range(sets):
@@ -116,7 +119,97 @@ class Approximator(object):
         self.alpha = result.x
         return phi_bagging
 
-    
+
+    def quadratic_random_matrix(self, x, z, setting):
+        sets = setting['sets']
+        basis_size = setting['basis_size']
+
+        xk = {}
+        zk = {}
+        for k in range(sets):
+            xk[k] = []
+            zk[k] = []
+
+        K = len(x[0,:])
+        for k in range(K):
+            i = np.random.choice(range(sets))
+            xk[i].append(x[:,k])
+            zk[i].append(z[k])
+
+        x_size = len(x[:,0])
+        # generate_random_matrix
+        Qn = {}
+        bn = {}
+        for i in range(basis_size):
+            Qn[i] = np.random.rand(x_size,x_size)
+            bn[i] = np.random.rand(x_size)
+        
+        def simple_trapping(x, z):
+
+            # phi = np.zeros(shape=(basis_size,K))
+            phi = np.zeros(K)
+
+            def simple_dist(alpha):
+                Q = np.zeros(shape=(x_size,x_size))
+                b = np.zeros(x_size)
+                for i in range(basis_size):
+                    Q += Qn[i]*alpha[i]
+                    b += bn[i]*alpha[i]
+
+                self.parameter['Q'] = Q
+                self.parameter['b'] = b
+                
+                sum_dist = 0
+                # for i in range(basis_size):
+                for k in range(K):
+                    # phi[i][k] = self.kernel[self.method]( [x[:,k]] )
+                    # sum_dist += (phi[i][k] - z[k])**2
+                    phi[k] = self.kernel[self.method]( [x[:,k]] )
+                    sum_dist += (phi[k] - z[k])**2
+                return sum_dist
+
+            alpha_0 = np.ones(basis_size)
+            result = minimize(simple_dist, alpha_0, method='CG')
+            self.alpha = result.x
+
+            Q = np.zeros(shape=(x_size,x_size))
+            b = np.zeros(x_size)
+            for i in range(basis_size):
+                Q += Qn[i]*self.alpha[i]
+                b += bn[i]*self.alpha[i]
+            self.parameter['Q'] = Q
+            self.parameter['b'] = b
+            return self.kernel[self.method]
+
+        self.cur = []
+        for i in range(sets):
+            _cur = copy.deepcopy( simple_trapping(x, z) )
+            self.cur.append(_cur)
+
+        self.alpha = np.ones(sets)
+        
+        def phi_bagging(x):
+            phi_hat = np.zeros(sets)
+            for i in range(sets):
+                phi_hat[i] = self.cur[i]( x )
+            return self.alpha.dot( phi_hat )
+
+        alpha_0 = np.ones(sets)
+
+        def phi_dist_bagging(alpha):
+            dist_sum = 0
+            self.alpha = alpha
+            for k in range(K):
+                dist_sum += ( phi_bagging( [x[:,k]] ) - z[k])**2
+                # print(dist_sum)
+            return dist_sum
+
+        result = minimize(phi_dist_bagging, alpha_0, method='CG')
+        self.alpha = result.x
+        return phi_bagging
+
+
+
     def sklearn_svm(self, x, z, setting):
         kernel = setting['kernel']
         degree = setting['degree']
@@ -136,7 +229,7 @@ class Approximator(object):
         err = 0
         for i in range(len(z)):
             err += ( cur([x[:,i]]) - z[i])**2
-        logging.info(f'{err}')
+        logging.info(f'error: {np.sqrt(err)/len(z)}')
 
 
 

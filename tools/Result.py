@@ -98,4 +98,4 @@ class Result(object):
         y_xlse.save()
 
         pd.DataFrame(e).to_csv(f'results/e_{file}.csv')
-        logging.info(f'data saved to results/y_{file}.xlsx and results/e_{file}.csv!')
+        logging.info(f'data saved to results/y_{file}.xlsx and results/e_{file}.csv')
