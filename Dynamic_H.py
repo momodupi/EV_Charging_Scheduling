@@ -100,60 +100,81 @@ def Dynamic_H():
 
 
 def Dynamic_Data(data_size=0):
-    info = {
-        'time_horizon': 48,
-        'unit': 'hour',
-        'arrival_rate': 20, #/hour
-        'RoC': 10, #kw
-        'BC': 50, #kwh
-        'm': 4,
-        'n': 4,
-        'seed': 0
-    }
-    result = Static_H(info)
-    pa = result.pa
-    ye = result.result_output
-    pa.get_z(ye)
 
-    tmn2cnt = {}
-    cnt2tme = []
-    for mi in range(pa.menu_m_size):
-        for ni in range(pa.menu_m_size):
-            t = 0
+    z = np.zeros(10)
+    x = np.zeros(shape=(2*4*4*4, 10))
 
-    # formalized {train_x,train_z}
-    s0 = 0
-    
-    value_s = 0
-    z = np.zeros(pa.time_horizon)
-    x = np.zeros(shape=(2*pa.menu_n_size*pa.menu_m_size*pa.menu_n_size, pa.time_horizon))
+    for cnt in range(10):
 
-    for s in range(s0, pa.time_horizon):
-        # x.append( pa.get_state(ye, s).flatten() )
-        x[:,s] = pa.get_state(ye, s).flatten().T
+        info = {
+            'time_horizon': 48,
+            'unit': 'hour',
+            'arrival_rate': 20, #/hour
+            'RoC': 10, #kw
+            'BC': 50, #kwh
+            'm': 4,
+            'n': 4,
+            'seed': cnt
+        }
+        result = Static_H(info)
+        pa = result.pa
+        ye = result.result_output
+        pa.get_z(ye)
+        pa.readable = True
 
+        # tmn2cnt = {}
+        # cnt2tme = []
+        # for mi in range(pa.menu_m_size):
+        #     for ni in range(pa.menu_m_size):
+        #         t = 0
+
+        # formalized {train_x,train_z}
+        s0 = 0
+
+        s = 0
+        value_s = 0
+        
+        x[:,cnt] = pa.get_state(ye, s).flatten().T
         for t in ye['y'][s]:
             for mi in ye['y'][s][t]:
                 for ni in ye['y'][s][t][mi]:
                     value_s += ye['y'][s][t][mi][ni]*pa.v[s][t][mi][ni]
-        value_s -= pa.c[s]*ye['e'][s]
-        z[s] = value_s
+            value_s -= pa.c[s]*ye['e'][s]
+        z[cnt] = value_s
+
+
+    # value_s = 0
+    # z = np.zeros(pa.time_horizon)
+    # x = np.zeros(shape=(2*pa.menu_n_size*pa.menu_m_size*pa.menu_n_size, pa.time_horizon))
+
+    # for s in range(s0, pa.time_horizon):
+    #     # x.append( pa.get_state(ye, s).flatten() )
+    #     x[:,s] = pa.get_state(ye, s).flatten().T
+
+    #     for t in ye['y'][s]:
+    #         for mi in ye['y'][s][t]:
+    #             for ni in ye['y'][s][t][mi]:
+    #                 value_s += ye['y'][s][t][mi][ni]*pa.v[s][t][mi][ni]
+    #     value_s -= pa.c[s]*ye['e'][s]
+    #     z[s] = value_s
 
     ap = Approximator()
-    cur = ap.bootstrapping(x,z)
-    setting = {
-        'kernel': 'poly',
-        'degree': 5,
-        'gamma': 'auto',
-        'tol': 10e-6
-    }
-    cur = ap.sklearn_svm(x, z, setting)
 
+    # print(np.shape(x[:,s]))
+    # cur = ap.bootstrapping(x,z)
     # setting = {
-    #     'sets': 1,
-    #     'basis_size': 10,
+    #     'kernel': 'poly',
+    #     'degree': 2,
+    #     'gamma': 'auto',
+    #     'tol': 10e-6
     # }
-    # cur = ap.quadratic_random_matrix(x, z, setting)
+    # cur = ap.sklearn_svm(x, z, setting)
+
+    setting = {
+        'sets': 1,
+        'basis_size': 50,
+    }
+    cur = ap.quadratic_random_matrix(x, z, setting)
     ap.check(cur, x, z)
 
 

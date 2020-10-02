@@ -141,8 +141,11 @@ class Approximator(object):
         Qn = {}
         bn = {}
         for i in range(basis_size):
+
             Qn[i] = np.random.rand(x_size,x_size)
-            bn[i] = np.random.rand(x_size)
+            Qn[i] = -Qn[i].dot(Qn[i].T)
+
+            bn[i] = np.random.normal(0, 1, x_size)            
         
         def simple_trapping(x, z):
 
@@ -228,7 +231,7 @@ class Approximator(object):
     def check(self, cur, x, z):
         err = 0
         for i in range(len(z)):
-            err += ( cur([x[:,i]]) - z[i])**2
+            err += ( cur([x[:,i]]) - z[i] )**2
         logging.info(f'error: {np.sqrt(err)/len(z)}')
 
 
@@ -248,9 +251,27 @@ def demo(X):
         # z[i] = np.sum(x[:,i])
 
     ap = Approximator()
-    cur = ap.bootstrapping(x,z)
-    # cur = ap.sklearn_svm(x,z)
-    # cur = ap.bagging(x,z, 10)
+
+    setting = {
+        'sets': 1,
+        'basis_size': 10
+    }
+    cur = ap.quadratic_random_matrix(x,z, setting)
+
+    # cur = ap.bootstrapping(x,z)
+
+    # setting = {
+    #     'kernel': 'poly',
+    #     'degree': 4,
+    #     'gamma': 'auto',
+    #     'tol': 10e-4
+    # }
+    # cur = ap.sklearn_svm(x,z, setting=setting)
+    
+    # setting = {
+    #     'set': 10
+    # }
+    # cur = ap.bagging(x,z, setting)
 
     # regr = ap.sklearn_svm(x,z)
     # print(regr.predict([[1,1]]))
@@ -261,3 +282,7 @@ def demo(X):
         boosts_err += ( cur([x[:,i]]) - z[i])**2
 
     print(boosts_err)
+
+
+if __name__ == "__main__":
+    demo(100)

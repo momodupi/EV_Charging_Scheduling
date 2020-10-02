@@ -461,6 +461,7 @@ class Parameter(object):
 
         A_ub_u = np.eye(len(c))
         b_ub_u = np.zeros(len(c))
+
         A_ub_l = -np.eye(len(c))
         b_ub_l = np.zeros(len(c))
 
