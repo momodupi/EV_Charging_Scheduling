@@ -215,9 +215,6 @@ def dp_sch(setting):
                             req_slots -= charge_slots
                             y[s][t][mi][ni] -= charge_slots
 
-                                
-
-
     return EV    
 
 

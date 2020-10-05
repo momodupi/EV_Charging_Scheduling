@@ -189,10 +189,16 @@ class Approximator(object):
         return regr.predict
 
     def check(self, cur, x, z):
-        err = 0
+        logging.basicConfig(level=logging.INFO)
+
+        z_approx = np.zeros(len(z))
         for i in range(len(z)):
-            err += ( cur([x[:,i]]) - z[i] )**2
-        logging.info(f'error: {np.sqrt(err)/len(z)}')
+            z_approx[i] = cur([x[:,i]])
+
+        sigma = np.linalg.norm(z_approx-z)
+        mu = sigma/np.mean(z)
+
+        logging.info(f'deviation: std: {sigma}, coe: {mu}')
 
 
 
