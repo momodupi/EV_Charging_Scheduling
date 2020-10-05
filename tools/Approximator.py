@@ -10,7 +10,7 @@ from scipy.optimize import linprog
 from scipy.optimize import minimize
 from scipy.linalg import null_space
 
-from sklearn import svm
+from sklearn import svm, linear_model
 
 
 import json
@@ -49,168 +49,128 @@ class Approximator(object):
         b = self.parameter['b']
         return _x.T.dot(Q.dot(_x))+b.T.dot(_x)
 
+    def quadratic_random_matrix(self, x, z, setting):
+        basis_size = setting['basis_size']
+        seed = 0 if 'seed' not in setting else setting['seed']
+        convex = setting['convex']
+
+        data_size = len(z)
+        x_size = len(x[:,0])
+
+        np.random.seed(seed)
+
+        # generate basis and z_bar
+        Q_basis = {}
+        b_basis = {}
+        # z_bar are values for each ((Q,b),z) pair
+        z_bar = np.zeros(shape=(data_size, basis_size))
+        for i in range(data_size):
+            for k in range(basis_size):
+                Q_basis[k] = np.random.rand(x_size,x_size)
+                Q_basis[k] = Q_basis[k].dot(Q_basis[k]) if convex else -Q_basis[k].dot(Q_basis[k])
+                b_basis[k] = np.random.normal(0, 1, x_size)
+
+                z_bar[i,k] = x[:,i].T.dot(Q_basis[k].dot(x[:,i])) + x[:,i].dot(b_basis[k])
+
+        # calculate optimal beta for each data
+        all_Q = np.array( [ Q_basis[i] for i in range(basis_size) ] ).T
+        all_b = np.array( [ b_basis[i] for i in range(basis_size) ] ).T
+        Q_hat = {}
+        b_hat = {}
+        for i in range(data_size):
+            # linearly fit (z_bar,z) without b
+            reg = linear_model.LinearRegression(fit_intercept=False)
+            # fit: |[beta]_i * [z_bar]_i - z_i| for each i
+            reg.fit([z_bar[i,:].T], [z[i]])
+            beta = reg.coef_
+            
+            # optimal Q,b for each i: Q_hat = \sum_j beta_j*Q_j
+            Q_hat[i] = all_Q.dot(beta).reshape((x_size,x_size))
+            b_hat[i] = all_b.dot(beta)
+
+        # calculate z_hat: values for each ((Q_hat,b_hat),z) pair
+        z_hat = np.zeros(shape=(data_size,data_size))
+        for i in range(data_size):
+            for j in range(data_size):
+                z_hat[i,j] = x[:,i].T.dot(Q_hat[j].dot(x[:,i])) + x[:,i].dot(b_hat[j])
+        
+        # linearly fit (z_hat,z) without b, z_hat is a matrix
+        reg = linear_model.LinearRegression(fit_intercept=False)
+        # fit: || alpha * z_hat -z ||
+        reg.fit(z_hat, z)
+        alpha = reg.coef_
+
+        all_Q = np.array( [ Q_hat[i] for i in range(data_size) ] ).T
+        all_b = np.array( [ b_hat[i] for i in range(data_size) ] ).T
+        Q = all_Q.dot(alpha).reshape((x_size,x_size))
+        b = all_b.dot(alpha)
+
+        self.parameter['Q'] = Q
+        self.parameter['b'] = b
+        return copy.deepcopy(self.phi_quadratic)
+
 
     def bootstrapping(self, x, z):
-        p_0 = np.zeros(shape=((len(x[:,0])+1)*len(x[:,0]),1))
-        # print(p_0)
-        K = len(x[0,:])
         x_size = len(x[:,0])
+        p_0 = np.zeros(shape=((x_size+1)*x_size,1))
+        # print(p_0)
+        data_size = len(x[0,:])
 
         def phi_dist_boosts(p):
             sum_dist = 0
-            for k in range(K):
+            for k in range(data_size):
                 self.theta[self.method](p, x_size)
                 phi = self.kernel[self.method]( [x[:,k]] )
                 
                 sum_dist += (phi - z[k])**2
             
-            return sum_dist/K
+            return sum_dist/data_size
         
         result = minimize(phi_dist_boosts, p_0, method='CG')
-        # print(result)
-        # return result.x
         self.theta[self.method](result.x, x_size)
-
-        # return self.theta_quadratic(result.x, x_size)
         return self.kernel[self.method]
 
 
     def bagging(self, x, z, setting):
-        sets = setting['set']
-        xk = {}
-        zk = {}
-        for k in range(sets):
-            xk[k] = []
-            zk[k] = []
-
-        K = len(x[0,:])
-        for k in range(K):
-            i = np.random.choice(range(sets))
-            xk[i].append(x[:,k])
-            zk[i].append(z[k])
-
-        self.cur = []
-        for i in range(sets):
-            _x = np.array(xk[i]).T
-            _z = np.array(zk[i])
-            # print(_x,_z)
-            _cur = copy.deepcopy( self.bootstrapping(_x, _z) )
-            self.cur.append(_cur)
-
-        self.alpha = np.ones(sets)
-        
-        def phi_bagging(x):
-            phi_hat = np.zeros(sets)
-            for i in range(sets):
-                phi_hat[i] = self.cur[i]( x )
-            return self.alpha.dot( phi_hat )
-
-        alpha_0 = np.ones(sets)
-
-        def phi_dist_bagging(alpha):
-            dist_sum = 0
-            self.alpha = alpha
-            for k in range(K):
-                dist_sum += ( phi_bagging( [x[:,k]] ) - z[k])**2
-                # print(dist_sum)
-            return dist_sum
-
-        result = minimize(phi_dist_bagging, alpha_0, method='CG')
-        self.alpha = result.x
-        return phi_bagging
-
-
-    def quadratic_random_matrix(self, x, z, setting):
         sets = setting['sets']
-        basis_size = setting['basis_size']
-
         xk = {}
         zk = {}
+        data2sets = {}
+        sets2data = {}
         for k in range(sets):
             xk[k] = []
             zk[k] = []
+            sets2data[k] = []
 
-        K = len(x[0,:])
-        for k in range(K):
-            i = np.random.choice(range(sets))
-            xk[i].append(x[:,k])
-            zk[i].append(z[k])
+        data_size = len(x[0,:])
+        for i in range(data_size):
+            k = np.random.choice(range(sets))
+            xk[k].append(x[:,i])
+            zk[k].append(z[i])
+            data2sets[i] = k
+            sets2data[k].append(i)
 
-        x_size = len(x[:,0])
-        # generate_random_matrix
-        Qn = {}
-        bn = {}
-        for i in range(basis_size):
+        cur = []
+        for k in range(sets):
+            _x = np.array(xk[k]).T
+            _z = np.array(zk[k])
+            cur.append( copy.deepcopy( self.bootstrapping(_x, _z) ) )
 
-            Qn[i] = np.random.rand(x_size,x_size)
-            Qn[i] = -Qn[i].dot(Qn[i].T)
+        z_hat = np.zeros(shape=(data_size, sets))
+        for i in range(data_size):
+            for j in range(data_size):
+                k = data2sets[j]
+                z_hat[i,k] = cur[k]( [x[:,i]] )
 
-            bn[i] = np.random.normal(0, 1, x_size)            
-        
-        def simple_trapping(x, z):
+        reg = linear_model.LinearRegression(fit_intercept=False)
+        reg.fit(z_hat, z)
+        alpha = reg.coef_
 
-            # phi = np.zeros(shape=(basis_size,K))
-            phi = np.zeros(K)
-
-            def simple_dist(alpha):
-                Q = np.zeros(shape=(x_size,x_size))
-                b = np.zeros(x_size)
-                for i in range(basis_size):
-                    Q += Qn[i]*alpha[i]
-                    b += bn[i]*alpha[i]
-
-                self.parameter['Q'] = Q
-                self.parameter['b'] = b
-                
-                sum_dist = 0
-                # for i in range(basis_size):
-                for k in range(K):
-                    # phi[i][k] = self.kernel[self.method]( [x[:,k]] )
-                    # sum_dist += (phi[i][k] - z[k])**2
-                    phi[k] = self.kernel[self.method]( [x[:,k]] )
-                    sum_dist += (phi[k] - z[k])**2
-                return sum_dist
-
-            alpha_0 = np.ones(basis_size)
-            result = minimize(simple_dist, alpha_0, method='CG')
-            self.alpha = result.x
-
-            Q = np.zeros(shape=(x_size,x_size))
-            b = np.zeros(x_size)
-            for i in range(basis_size):
-                Q += Qn[i]*self.alpha[i]
-                b += bn[i]*self.alpha[i]
-            self.parameter['Q'] = Q
-            self.parameter['b'] = b
-            return self.kernel[self.method]
-
-        self.cur = []
-        for i in range(sets):
-            _cur = copy.deepcopy( simple_trapping(x, z) )
-            self.cur.append(_cur)
-
-        self.alpha = np.ones(sets)
-        
         def phi_bagging(x):
-            phi_hat = np.zeros(sets)
-            for i in range(sets):
-                phi_hat[i] = self.cur[i]( x )
-            return self.alpha.dot( phi_hat )
+            phi_hat = np.array( [cur[i](x) for i in range(sets)] )
+            return alpha.dot( phi_hat )
 
-        alpha_0 = np.ones(sets)
-
-        def phi_dist_bagging(alpha):
-            dist_sum = 0
-            self.alpha = alpha
-            for k in range(K):
-                dist_sum += ( phi_bagging( [x[:,k]] ) - z[k])**2
-                # print(dist_sum)
-            return dist_sum
-
-        result = minimize(phi_dist_bagging, alpha_0, method='CG')
-        self.alpha = result.x
         return phi_bagging
-
 
 
     def sklearn_svm(self, x, z, setting):
@@ -237,7 +197,7 @@ class Approximator(object):
 
 
 def demo(X):
-
+    np.random.seed(0)
     x = np.array(
         [
             np.random.uniform(0,10,X),
@@ -252,29 +212,29 @@ def demo(X):
 
     ap = Approximator()
 
-    setting = {
-        'sets': 1,
-        'basis_size': 10
-    }
-    cur = ap.quadratic_random_matrix(x,z, setting)
+    # setting = {
+    #     'basis_size': 10,
+    #     'convex': True,
+    # }
+    # cur = ap.quadratic_random_matrix(x,z, setting)
 
     # cur = ap.bootstrapping(x,z)
 
     # setting = {
     #     'kernel': 'poly',
-    #     'degree': 4,
+    #     'degree': 2,
     #     'gamma': 'auto',
-    #     'tol': 10e-4
+    #     'tol': 10e-6
     # }
     # cur = ap.sklearn_svm(x,z, setting=setting)
     
-    # setting = {
-    #     'set': 10
-    # }
-    # cur = ap.bagging(x,z, setting)
+    setting = {
+        'sets': 10
+    }
+    cur = ap.bagging(x,z, setting)
 
-    # regr = ap.sklearn_svm(x,z)
-    # print(regr.predict([[1,1]]))
+
+
     boosts_err = 0
     for i in range(len(z)):
         # boosts_err += ( regr.predict( [x[:,i]] ) - z[i])**2

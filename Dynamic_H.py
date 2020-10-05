@@ -122,13 +122,6 @@ def Dynamic_Data(data_size=0):
         pa.get_z(ye)
         pa.readable = True
 
-        # tmn2cnt = {}
-        # cnt2tme = []
-        # for mi in range(pa.menu_m_size):
-        #     for ni in range(pa.menu_m_size):
-        #         t = 0
-
-        # formalized {train_x,train_z}
         s0 = 0
 
         s = 0
@@ -160,18 +153,8 @@ def Dynamic_Data(data_size=0):
 
     ap = Approximator()
 
-    # print(np.shape(x[:,s]))
-    # cur = ap.bootstrapping(x,z)
-    # setting = {
-    #     'kernel': 'poly',
-    #     'degree': 2,
-    #     'gamma': 'auto',
-    #     'tol': 10e-6
-    # }
-    # cur = ap.sklearn_svm(x, z, setting)
-
     setting = {
-        'sets': 1,
+        'convex': False,
         'basis_size': 50,
     }
     cur = ap.quadratic_random_matrix(x, z, setting)
