@@ -1,8 +1,10 @@
+from copy import copy, deepcopy
 from math import inf
 import sys
 
 
 import numpy as np
+from numpy.core.defchararray import translate
 import pandas as pd
 
 from cvxopt import matrix, solvers
@@ -17,9 +19,12 @@ from tools.Approximator import Approximator
 from Static_H import Static_H
 
 import logging
+import queue
 import json
+import copy
 import pickle
 import time
+import multiprocessing
 
 
 
@@ -100,9 +105,94 @@ def Dynamic_H():
 
 
 
-def Traning_Generators(data_size=0, info=None):
+def Generators_single_process(info):
+    result = Static_H(info)
+    pa = result.pa
+    ye = result.result_output
+    pa.get_z(ye)
+    pa.readable = False
 
+    value_s = 0
     data = {}
+    for i in range(info['time_horizon']):
+            data[i] = []
+    # terminal cost is useless: 0 ~ T-1
+    for s in range(0, pa.time_horizon):
+        x_s = pa.get_state(ye, s).flatten().T
+        for t in ye['y'][s]:
+            for mi in ye['y'][s][t]:
+                for ni in ye['y'][s][t][mi]:
+                    value_s += ye['y'][s][t][mi][ni]*pa.v[s][t][mi][ni]
+            value_s -= pa.c[s]*ye['e'][s]
+        z_s = value_s
+        data[s].append( (x_s,z_s) )
+    return data
+
+
+
+def Traning_Generators(data_size=0, info=None, mp=False):
+
+    if not mp:
+        data = {}
+        # initialize x and z for each time
+        for i in range(info['time_horizon']):
+            data[i] = []
+
+        for cnt in range(data_size):
+            info['seed'] = cnt
+            
+            result = Static_H(info)
+            pa = result.pa
+            ye = result.result_output
+            pa.get_z(ye)
+            pa.readable = True
+
+            value_s = 0
+
+            # terminal cost is useless: 0 ~ T-1
+            for s in range(0, pa.time_horizon):
+                x_s = pa.get_state(ye, s).flatten().T
+                for t in ye['y'][s]:
+                    for mi in ye['y'][s][t]:
+                        for ni in ye['y'][s][t][mi]:
+                            value_s += ye['y'][s][t][mi][ni]*pa.v[s][t][mi][ni]
+                    value_s -= pa.c[s]*ye['e'][s]
+                z_s = value_s
+                data[s].append( (x_s,z_s) )
+
+        with open('cache/training_data.pickle', 'wb') as pickle_file:
+            pickle.dump(data, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
+    
+    else:
+        # process_cnt = min(int(multiprocessing.cpu_count()/2), data_size)
+        process_pool = []
+        # result_queue = queue.Queue()
+        # result_queue = multiprocessing.Manager().Queue()
+
+        for cnt in range(data_size):
+            p_info = copy.deepcopy(info)
+            p_info['seed'] = cnt
+            process_pool.append(p_info)
+
+        with multiprocessing.Pool() as pool:
+            data_list = pool.map( Generators_single_process, process_pool )
+            
+            # print(data_list)
+
+        data = {}
+        for i in range(info['time_horizon']):
+            data[i] = []
+        for s_data in data_list:
+            for s in s_data:
+                data[s].append(s_data[s][0])
+
+        with open('cache/training_data.pickle', 'wb') as pickle_file:
+            pickle.dump(data, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
+        # print(data)
+
+def main():
+    logging.basicConfig(level=logging.INFO)
+    # Dynamic_H()
     info = {
         'time_horizon': 48,
         'unit': 'hour',
@@ -112,55 +202,14 @@ def Traning_Generators(data_size=0, info=None):
         'm': 4,
         'n': 4,
         'seed': 0
-    } if not info else info
-
-    # initialize x and z for each time
-    for i in range(info['time_horizon']):
-        data[i] = []
-
-    for cnt in range(data_size):
-        info['seed'] = cnt
-        
-        result = Static_H(info)
-        pa = result.pa
-        ye = result.result_output
-        pa.get_z(ye)
-        pa.readable = True
-
-        value_s = 0
-
-        # terminal cost is useless: 0 ~ T-1
-        for s in range(0, pa.time_horizon-1):
-            x_s = pa.get_state(ye, s).flatten().T
-            for t in ye['y'][s]:
-                for mi in ye['y'][s][t]:
-                    for ni in ye['y'][s][t][mi]:
-                        value_s += ye['y'][s][t][mi][ni]*pa.v[s][t][mi][ni]
-                value_s -= pa.c[s]*ye['e'][s]
-            z_s = value_s
-            data[s].append( (x_s,z_s) )
-
-    with open('cache/training_data.pickle', 'wb') as pickle_file:
-        pickle.dump(data, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
-    # print(data)
-
-
-
-def main():
-    # Dynamic_H()
-    info = {
-        'time_horizon': 48,
-        'unit': 'hour',
-        'arrival_rate': 20, #/hour
-        'RoC': 10, #kw
-        'BC': 50, #kwh
-        'm': 4,
-        'n': 4
     }
-    # Traning_Generators(10, info)
+    Traning_Generators(1, info, True)
 
     with open('cache/training_data.pickle', 'rb') as pickle_file:
-        data_set = pickle.load(pickle_file)
+        training_data = pickle.load(pickle_file)
+
+    # with open('cache/test_data.pickle', 'rb') as pickle_file:
+    #     test_data = pickle.load(pickle_file)
 
     ap = Approximator()
 
@@ -169,19 +218,30 @@ def main():
         'basis_size': 128,
     }
 
-    for s in data_set:
-        data_size = len(data_set[s])
-        x_size = len(data_set[s][0][0])
+    for s in training_data:
+        # print(training_data[s])
+        data_size = len(training_data[s])
+        x_size = len(training_data[s][0][0])
 
-        x = np.zeros(shape=(x_size, data_size))
-        z = np.zeros(data_size)
+        x_train = np.zeros(shape=(x_size, data_size))
+        z_train = np.zeros(data_size)
         
-        for k,data_k in enumerate(data_set[s]):
-            x[:,k] = data_k[0]
-            z[k] = data_k[1]
-        cur = ap.quadratic_random_matrix(x, z, setting)
-        ap.check(cur, x, z)
+        for k,data_k in enumerate(training_data[s]):
+            x_train[:,k] = data_k[0]
+            z_train[k] = data_k[1]
+        cur = ap.quadratic_random_matrix(x_train, z_train, setting)
+        print(f'training: s={s}')
+        ap.check(cur, x_train, z_train)
 
+        
+    #     x_test = np.zeros(shape=(x_size, data_size))
+    #     z_test = np.zeros(data_size)
+        
+    #     for k,data_k in enumerate(test_data[s]):
+    #         x_test[:,k] = data_k[0]
+    #         z_test[k] = data_k[1]
+    #     print(f'test: s={s}')
+    #     ap.check(cur, x_test, z_test)
 
 
 if __name__ == "__main__":

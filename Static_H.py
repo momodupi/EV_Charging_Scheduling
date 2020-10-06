@@ -68,8 +68,8 @@ def CVXOPT_LP(c, A_eq, b_eq, A_ub, b_ub):
 
 
 def Static_H(info):
-    logging.basicConfig(level=logging.INFO)
-    np.set_printoptions(threshold=sys.maxsize)
+    # logging.basicConfig(level=logging.INFO)
+    # np.set_printoptions(threshold=sys.maxsize)
 
     ar = Arrivals(setting=info)
 
