@@ -117,7 +117,8 @@ def Generators_single_process(info):
     for i in range(info['time_horizon']):
             data[i] = []
     # terminal cost is useless: 0 ~ T-1
-    for s in range(0, pa.time_horizon):
+    for _s in range(1,pa.time_horizon+1):
+        s = pa.time_horizon-_s
         x_s = pa.get_state(ye, s).flatten().T
         for t in ye['y'][s]:
             for mi in ye['y'][s][t]:

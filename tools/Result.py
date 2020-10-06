@@ -13,6 +13,7 @@ class Result(object):
         self.pa = pa
         self.x = x
         self.dur = dur
+        logging.basicConfig(level=logging.INFO)
         logging.debug(self.x)
         logging.info(f'lp time: {dur} sec')
 

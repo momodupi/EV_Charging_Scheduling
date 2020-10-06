@@ -198,7 +198,7 @@ class Approximator(object):
         sigma = np.linalg.norm(z_approx-z)
         mu = sigma/np.mean(z)
 
-        logging.info(f'deviation: std: {sigma}, coe: {mu}')
+        logging.info(f'mean {np.mean(z)}, 2norm: {sigma}, cov: {mu}')
 
 
 

@@ -20,7 +20,9 @@ np.set_printoptions(threshold=sys.maxsize)
 
 
 class Parameter(object):
-    def __init__(self, EV, readable=False):
+    def __init__(self, ar, readable=False):
+
+        EV = ar.EV
  
         self.time_horizon = EV['info']['time_horizon']
         self.time_arrival_horizon = EV['info']['time_arrival_horizon']
@@ -48,8 +50,8 @@ class Parameter(object):
 
         self.r = self.charge_rate
 
-        del EV['info']
-        self.EV = EV
+        # del EV['info']
+        # self.EV = EV
 
 
         self.stmn2cnt = {}
@@ -116,7 +118,7 @@ class Parameter(object):
         self.b_ub_l = None
 
         logging.debug('parameter: w')
-        self.w = self.get_w()
+        self.w = self.get_w(ar.w)
         logging.debug('parameter: c')
         self.c = self.get_c()
         logging.debug('parameter: d')
@@ -127,25 +129,25 @@ class Parameter(object):
         self.lags = {}
 
 
-    def get_w(self):
-        w = {}
-        # get w_s
-        for t in range(self.time_horizon):
-            # w[t] = np.zeros(shape=(menu_m_size,menu_n_size))
-            w[t] = {}
-            for mi,m in enumerate(self.menu['m']):
-                w[t][mi] = {}
-                for ni,n in enumerate(self.menu['n']):
-                    w[t][mi][ni] = 0
+    def get_w(self, w):
+        # w = {}
+        # # get w_s
+        # for t in range(self.time_horizon):
+        #     # w[t] = np.zeros(shape=(menu_m_size,menu_n_size))
+        #     w[t] = {}
+        #     for mi,m in enumerate(self.menu['m']):
+        #         w[t][mi] = {}
+        #         for ni,n in enumerate(self.menu['n']):
+        #             w[t][mi][ni] = 0
 
-        for ev_id in self.EV:
-            # tran t to time
-            t = self.EV[ev_id]['arrive']
-            mi = self.EV[ev_id]['m']
-            ni = self.EV[ev_id]['n']
-            w[t][mi][ni] += 1
+        # for ev_id in self.EV:
+        #     # tran t to time
+        #     t = self.EV[ev_id]['arrive']
+        #     mi = self.EV[ev_id]['m']
+        #     ni = self.EV[ev_id]['n']
+        #     w[t][mi][ni] += 1
 
-        # print(w)
+        # w = self.w
         # reform w to csv
         if self.readable:
             w_csv = {}

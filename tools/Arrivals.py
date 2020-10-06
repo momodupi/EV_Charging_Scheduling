@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.core.defchararray import equal
 import pandas as pd
 
 import json
@@ -26,12 +27,13 @@ class Arrivals(object):
 
         # Poisson arrival
         self.arrival_rate = setting['arrival_rate']
-        prob = 1 - np.exp( - self.arrival_rate*self.time_arrival_ratio ) 
-        prob_set = np.array( [prob] * self.time_arrival_horizon )
+        # prob = 1 - np.exp( - self.arrival_rate*self.time_arrival_ratio ) 
+        # prob_set = np.array( [prob] * self.time_arrival_horizon )
 
         # generate passengers
-        np.random.seed(setting['seed'])
-        randomness = np.random.uniform(low=0, high=1, size=(self.time_arrival_horizon,))
+        self.seed = setting['seed']
+        # np.random.seed()
+        # randomness = np.random.uniform(low=0, high=1, size=(self.time_arrival_horizon,))
 
         # data info
         self.charge_rate = setting['RoC'] # in kW
@@ -72,10 +74,11 @@ class Arrivals(object):
             'n_size': self.menu_n_size
         }
 
-
-        # toss = np.where( np.greater(prob_set, randomness) )[0]
-        # print(randomness)
-        # print(toss)
+    def EV_arrivals(self):
+        np.random.seed(self.seed)
+        randomness = np.random.uniform(low=0, high=1, size=(self.time_arrival_horizon,))
+        prob = 1 - np.exp( - self.arrival_rate*self.time_arrival_ratio ) 
+        prob_set = np.array( [prob] * self.time_arrival_horizon )
         ev_id = 0
         EV_csv = []
 
@@ -137,7 +140,37 @@ class Arrivals(object):
 
         pd.DataFrame.from_dict(EV_csv).to_csv('cache/EV.csv')
 
+        # save to w
+        self.w = {}
+        # get w_s
+        for t in range(self.time_horizon):
+            # w[t] = np.zeros(shape=(menu_m_size,menu_n_size))
+            self.w[t] = {}
+            for mi,m in enumerate(self.menu['m']):
+                self.w[t][mi] = {}
+                for ni,n in enumerate(self.menu['n']):
+                    self.w[t][mi][ni] = 0
+
+        for ev_id in self.EV:
+            if ev_id != 'info':
+                # tran t to time
+                t = self.EV[ev_id]['arrive']
+                mi = self.EV[ev_id]['m']
+                ni = self.EV[ev_id]['n']
+                self.w[t][mi][ni] += 1
+
         with open('cache/ev.pickle', 'wb') as pickle_file:
             pickle.dump(self.EV, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
 
 
+    def simple_arrivals(self, arrival_matrix):
+        np.random.seed(self.seed)
+        self.w = {}
+        # get w_s
+        for t in range(self.time_horizon):
+            self.w[t] = {}
+            for mi,m in enumerate(self.menu['m']):
+                self.w[t][mi] = {}
+                for ni,n in enumerate(self.menu['n']):
+                    chargeable = t < self.time_horizon-n and m/n<= self.charge_rate
+                    self.w[t][mi][ni] = np.random.poisson(arrival_matrix[t][mi][ni], 1) if chargeable else 0

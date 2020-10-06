@@ -72,8 +72,19 @@ def Static_H(info):
     # np.set_printoptions(threshold=sys.maxsize)
 
     ar = Arrivals(setting=info)
+    ar.EV_arrivals()
 
-    pa = Parameter(ar.EV, readable=True)
+    # arrival_matrix = {}
+    # for t in range(ar.time_horizon):
+    #     arrival_matrix[t] = {}
+    #     for mi,m in enumerate(ar.menu['m']):
+    #         arrival_matrix[t][mi] = {}
+    #         for ni,n in enumerate(ar.menu['n']):
+    #             # chargeable = t < ar.time_horizon-n and m/n<= ar.charge_rate
+    #             arrival_matrix[t][mi][ni] = 5
+    #ar.simple_arrivals(arrival_matrix)
+    
+    pa = Parameter(ar, readable=True)
 
     pa_dic = pa.get_LP_static()
     c = pa_dic['c']
@@ -102,6 +113,11 @@ def Static_H(info):
 
 
 def main():
+
+    arrive_rate = np.zeros(shape=(5,5))
+    for i in range(5):
+        for j in range(5):
+            arrive_rate[i,j] = 5
 
     info = {
         'time_horizon': 24,
