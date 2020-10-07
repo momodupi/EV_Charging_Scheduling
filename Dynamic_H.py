@@ -232,6 +232,10 @@ def main():
             z_train[k] = data_k[1]
         
         # cur = ap.quadratic_random_matrix(x_train, z_train, setting)
+        # Q = ap.parameter['Q']
+        # b = ap.parameter['b']
+
+        # print( np.all(np.linalg.eigvals(Q) > 0) )
 
         # setting = {
         #     'kernel': 'poly',
@@ -252,7 +256,9 @@ def main():
             'learning_rate': 'constant'
         }
 
-        cur = ap.sklearn_neutral(x_train,z_train, setting=setting)
+        cur = ap.sklearn_neural(x_train,z_train, setting=setting)
+
+        # cur = ap.pytorch_neural(x_train,z_train, setting=None)
 
         print(f'training: s={s}')
         ap.check(cur, x_train, z_train)

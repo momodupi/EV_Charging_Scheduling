@@ -11,7 +11,10 @@ from scipy.optimize import minimize
 from scipy.linalg import null_space
 
 from sklearn import svm, linear_model, neural_network, preprocessing
-
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.autograd import Variable
 
 import json
 import pickle
@@ -190,7 +193,7 @@ class Approximator(object):
         return regr.predict
 
     
-    def sklearn_neutral(self, x, z, setting):
+    def sklearn_neural(self, x, z, setting):
         clf = neural_network.MLPRegressor(
             solver=setting['solver'], 
             alpha=setting['alpha'],
@@ -206,6 +209,64 @@ class Approximator(object):
         clf.fit(x.T, z)
         return clf.predict
 
+    def pytorch_neural(self, x, z, setting):
+
+        data_size = len(z)
+        x_size = len(x[:,0])
+
+        # torch.autograd.detect_anomaly()
+        
+        class Net(torch.nn.Module):
+            def __init__(self, n_feature, n_hidden, n_output):
+                super(Net, self).__init__()
+                self.hidden = torch.nn.Linear(n_feature, n_hidden)   # hidden layer
+                self.predict = torch.nn.Linear(n_hidden, n_output)   # output layer
+
+            def forward(self, x):
+                x = F.relu(self.hidden(x))      # activation function for hidden layer
+                x = self.predict(x)             # linear output
+                return x
+        net = nn.Sequential(nn.Linear(x_size, 20), 
+                    nn.ReLU(), nn.Linear(20, 20),
+                    nn.ReLU(), nn.Linear(20, 20),
+                    nn.ReLU(), nn.Linear(20, 20),
+                    nn.ReLU(), nn.Linear(20, 20), 
+                    nn.ReLU(), nn.Linear(20, 1))
+        optimizer = torch.optim.SGD(net.parameters(), lr=0.2)
+
+        
+        X = torch.zeros([data_size,x_size])
+        Y = torch.zeros([data_size,1])
+        for i in range(data_size):
+            # for j in range(x_size):
+            X[i,:] = torch.from_numpy(x[:,i])
+        Y[:,0] = torch.from_numpy(z)
+        # print(X,Y)
+        # X = torch.from_numpy(x.T)
+        # Y = torch.from_numpy(z)
+        # _X = torch.norm(X, p=2).detach()
+        # X = _X.div(_X.expand_as(X))
+
+        for t in range(1000):
+            prediciton = net(X)
+            loss_func = torch.nn.MSELoss()
+            loss = loss_func(prediciton, Y)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            # print(loss)
+
+        def cur(x):
+            # print(x)
+            _x_size = len(x[0])
+            X = torch.zeros([1,_x_size])
+            for i in range(_x_size):
+                X[0,i] = x[0][i]
+            Y = net(X[0,:])
+            print(Y[0])
+            return float(Y)
+        return copy.deepcopy( cur )
+
 
     def check(self, cur, x, z):
         z_approx = np.zeros(len(z))
@@ -215,7 +276,7 @@ class Approximator(object):
         sigma = np.linalg.norm(z_approx-z)
         mu = sigma/np.mean(z)
 
-        logging.info(f'mean {np.mean(z)}, 2norm: {sigma}, cov: {mu}')
+        logging.info(f'mean:z {np.mean(z)}, mean:z\' {np.mean(z_approx)} 2norm: {sigma}, cov: {mu}')
 
 
 
@@ -251,11 +312,11 @@ def demo(X):
     # }
     # cur = ap.sklearn_svm(x,z, setting=setting)
     
-    setting = {
-        'sets': 10
-    }
-    cur = ap.bagging(x,z, setting)
-
+    # setting = {
+    #     'sets': 10
+    # }
+    # cur = ap.bagging(x,z, setting)
+    cur = ap.pytorch_neural(x,z,None)
 
 
     boosts_err = 0
