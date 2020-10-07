@@ -6,3 +6,4 @@
 *.pickle
 *.pyc
 .DS_Store
+*.log

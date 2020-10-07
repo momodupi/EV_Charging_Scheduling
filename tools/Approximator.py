@@ -19,6 +19,8 @@ import time
 import copy 
 
 import logging
+from imp import reload
+
 
 class Approximator(object):
     def __init__(self, method='quadratic'):
@@ -33,6 +35,9 @@ class Approximator(object):
         }
 
         self.parameter = {}
+
+        reload(logging)
+        logging.basicConfig(level=logging.INFO, filename='ap_result.log')
 
     def theta_quadratic(self, p, x_size):
         _p = p.reshape( (x_size+1, x_size) )
@@ -189,8 +194,6 @@ class Approximator(object):
         return regr.predict
 
     def check(self, cur, x, z):
-        logging.basicConfig(level=logging.INFO)
-
         z_approx = np.zeros(len(z))
         for i in range(len(z)):
             z_approx[i] = cur([x[:,i]])
