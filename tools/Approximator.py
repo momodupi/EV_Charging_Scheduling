@@ -10,7 +10,7 @@ from scipy.optimize import linprog
 from scipy.optimize import minimize
 from scipy.linalg import null_space
 
-from sklearn import svm, linear_model, neural_network
+from sklearn import svm, linear_model, neural_network, preprocessing
 
 
 import json
@@ -196,10 +196,13 @@ class Approximator(object):
             alpha=setting['alpha'],
             learning_rate=setting['learning_rate'],
             tol=setting['tol'],
+            max_iter=setting['max_iter'],
             hidden_layer_sizes=setting['hidden_layer'], 
             random_state=setting['random_state'],
             activation=setting['activation']
             )
+        # x_sacled = preprocessing.scale(x.T)
+        # z_scaled = preprocessing.scale(z)
         clf.fit(x.T, z)
         return clf.predict
 

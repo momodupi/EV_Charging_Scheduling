@@ -244,12 +244,14 @@ def main():
         setting = {
             'alpha': 10e-6,
             'random_state': 1,
-            'hidden_layer': (5,2),
+            'hidden_layer': (5,5),
             'solver': 'lbfgs',
             'activation': 'relu',
-            'tol': 10e-4,
+            'tol': 10e-3,
+            'max_iter': 50000,
             'learning_rate': 'constant'
         }
+
         cur = ap.sklearn_neutral(x_train,z_train, setting=setting)
 
         print(f'training: s={s}')
