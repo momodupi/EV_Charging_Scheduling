@@ -204,7 +204,7 @@ def main():
         'n': 4,
         'seed': 0
     }
-    Traning_Generators(1, info, True)
+    # Traning_Generators(2, info, True)
 
     with open('cache/training_data.pickle', 'rb') as pickle_file:
         training_data = pickle.load(pickle_file)
@@ -233,13 +233,24 @@ def main():
         
         # cur = ap.quadratic_random_matrix(x_train, z_train, setting)
 
+        # setting = {
+        #     'kernel': 'poly',
+        #     'degree': 2,
+        #     'gamma': 'auto',
+        #     'tol': 10e-6
+        # }
+        # cur = ap.sklearn_svm(x_train,z_train, setting=setting)
+
         setting = {
-            'kernel': 'poly',
-            'degree': 2,
-            'gamma': 'auto',
-            'tol': 10e-6
+            'alpha': 10e-6,
+            'random_state': 1,
+            'hidden_layer': (5,2),
+            'solver': 'lbfgs',
+            'activation': 'relu',
+            'tol': 10e-4,
+            'learning_rate': 'constant'
         }
-        cur = ap.sklearn_svm(x_train,z_train, setting=setting)
+        cur = ap.sklearn_neutral(x_train,z_train, setting=setting)
 
         print(f'training: s={s}')
         ap.check(cur, x_train, z_train)

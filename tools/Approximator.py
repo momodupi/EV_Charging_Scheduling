@@ -10,7 +10,7 @@ from scipy.optimize import linprog
 from scipy.optimize import minimize
 from scipy.linalg import null_space
 
-from sklearn import svm, linear_model
+from sklearn import svm, linear_model, neural_network
 
 
 import json
@@ -19,7 +19,7 @@ import time
 import copy 
 
 import logging
-from imp import reload
+# from imp import reload
 
 
 class Approximator(object):
@@ -36,7 +36,7 @@ class Approximator(object):
 
         self.parameter = {}
 
-        reload(logging)
+        # reload(logging)
         logging.basicConfig(level=logging.INFO, filename='ap_result.log')
 
     def theta_quadratic(self, p, x_size):
@@ -179,19 +179,30 @@ class Approximator(object):
 
 
     def sklearn_svm(self, x, z, setting):
-        kernel = setting['kernel']
-        degree = setting['degree']
-        gamma = setting['gamma']
-        tol = setting['tol']
         regr = svm.SVR(
-            kernel=kernel, 
-            degree=degree, 
-            gamma=gamma, 
-            tol=tol
+            kernel=setting['kernel'], 
+            degree=setting['degree'], 
+            gamma=setting['gamma'], 
+            tol=setting['tol']
             )
         regr.fit(x.T, z)
 
         return regr.predict
+
+    
+    def sklearn_neutral(self, x, z, setting):
+        clf = neural_network.MLPRegressor(
+            solver=setting['solver'], 
+            alpha=setting['alpha'],
+            learning_rate=setting['learning_rate'],
+            tol=setting['tol'],
+            hidden_layer_sizes=setting['hidden_layer'], 
+            random_state=setting['random_state'],
+            activation=setting['activation']
+            )
+        clf.fit(x.T, z)
+        return clf.predict
+
 
     def check(self, cur, x, z):
         z_approx = np.zeros(len(z))
