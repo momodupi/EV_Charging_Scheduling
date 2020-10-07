@@ -230,7 +230,17 @@ def main():
         for k,data_k in enumerate(training_data[s]):
             x_train[:,k] = data_k[0]
             z_train[k] = data_k[1]
-        cur = ap.quadratic_random_matrix(x_train, z_train, setting)
+        
+        # cur = ap.quadratic_random_matrix(x_train, z_train, setting)
+
+        setting = {
+            'kernel': 'poly',
+            'degree': 2,
+            'gamma': 'auto',
+            'tol': 10e-6
+        }
+        cur = ap.sklearn_svm(x_train,z_train, setting=setting)
+
         print(f'training: s={s}')
         ap.check(cur, x_train, z_train)
 
