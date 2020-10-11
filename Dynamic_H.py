@@ -199,12 +199,13 @@ def main():
         'unit': 'hour',
         'arrival_rate': 20, #/hour
         'RoC': 10, #kw
-        'BC': 50, #kwh
-        'm': 4,
-        'n': 4,
+        'BC': 30, #kwh
+        'm': 2,
+        'n': 2,
         'seed': 0
     }
-    # Traning_Generators(2, info, True)
+    Traning_Generators(2, info, True)
+
 
     with open('cache/training_data.pickle', 'rb') as pickle_file:
         training_data = pickle.load(pickle_file)

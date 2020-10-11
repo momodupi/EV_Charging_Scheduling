@@ -291,8 +291,8 @@ def demo(X):
     z = np.zeros(len(x[0,:]))
 
     for i,_z in enumerate(z):
-        z[i] = ( np.sum(x[:,i]) )**2
-        # z[i] = np.sum(x[:,i])
+        # z[i] = ( np.sum(x[:,i]) )**2
+        z[i] = np.exp(np.sum(x[:,i]))
 
     ap = Approximator()
 
@@ -316,8 +316,19 @@ def demo(X):
     #     'sets': 10
     # }
     # cur = ap.bagging(x,z, setting)
-    cur = ap.pytorch_neural(x,z,None)
 
+    setting = {
+        'alpha': 10e-6,
+        'random_state': 1,
+        'hidden_layer': (5,5),
+        'solver': 'lbfgs',
+        'activation': 'relu',
+        'tol': 10e-3,
+        'max_iter': 50000,
+        'learning_rate': 'constant'
+    }
+
+    cur = ap.sklearn_neural(x,z, setting=setting)
 
     boosts_err = 0
     for i in range(len(z)):
@@ -329,4 +340,4 @@ def demo(X):
 
 
 if __name__ == "__main__":
-    demo(100)
+    demo(1000)

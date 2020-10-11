@@ -72,17 +72,17 @@ def Static_H(info):
     # np.set_printoptions(threshold=sys.maxsize)
 
     ar = Arrivals(setting=info)
-    ar.EV_arrivals()
+    # ar.EV_arrivals()
 
-    # arrival_matrix = {}
-    # for t in range(ar.time_horizon):
-    #     arrival_matrix[t] = {}
-    #     for mi,m in enumerate(ar.menu['m']):
-    #         arrival_matrix[t][mi] = {}
-    #         for ni,n in enumerate(ar.menu['n']):
-    #             # chargeable = t < ar.time_horizon-n and m/n<= ar.charge_rate
-    #             arrival_matrix[t][mi][ni] = 5
-    #ar.simple_arrivals(arrival_matrix)
+    arrival_matrix = {}
+    for t in range(ar.time_horizon):
+        arrival_matrix[t] = {}
+        for mi,m in enumerate(ar.menu['m']):
+            arrival_matrix[t][mi] = {}
+            for ni,n in enumerate(ar.menu['n']):
+                arrival_matrix[t][mi][ni] = 5
+    ar.simple_arrivals(arrival_matrix)
+    # print(ar.w)
     
     pa = Parameter(ar, readable=True)
 
@@ -114,19 +114,14 @@ def Static_H(info):
 
 def main():
 
-    arrive_rate = np.zeros(shape=(5,5))
-    for i in range(5):
-        for j in range(5):
-            arrive_rate[i,j] = 5
-
     info = {
-        'time_horizon': 24,
+        'time_horizon': 48,
         'unit': 'hour',
         'arrival_rate': 20, #/hour
-        'RoC': 10, #kw
+        'RoC': 25, #kw
         'BC': 50, #kwh
-        'm': 5,
-        'n': 5,
+        'm': 2,
+        'n': 2,
         'seed': 0
     }
     Static_H(info)
