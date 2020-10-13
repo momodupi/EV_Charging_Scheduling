@@ -299,7 +299,7 @@ class Approximator(object):
             'mean': np.mean(z),
             '2norm': np.linalg.norm(z_approx-z, 2),
             'infnorm': np.linalg.norm(z_approx-z, np.inf),
-            'coe_var': np.linalg.norm(z_approx-z, 2)/np.linalg.norm(z_approx-z, np.inf),
+            'coe_var': np.linalg.norm(z_approx-z, 2)/np.mean(z),
             'z': z,
             'a_z': z_approx
         }

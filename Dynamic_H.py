@@ -233,7 +233,7 @@ def main():
         'n': 4,
         'seed': 0
     }
-    Traning_Generators(1, info, True)
+    # Traning_Generators(1, info, True)
 
     with open('cache/training_data_1000.pickle', 'rb') as pickle_file:
         training_data = pickle.load(pickle_file)
@@ -266,9 +266,9 @@ def main():
             x_train[:,k] = data_k[0]
             z_train[k] = data_k[1]
         
-        pd.DataFrame(x_train).to_csv(f'cache/x_training_{s}.csv')
-        pd.DataFrame(z_train).to_csv(f'cache/z_training_{s}.csv')
-        print('saved')
+        # pd.DataFrame(x_train).to_csv(f'cache/x_training_{s}.csv')
+        # pd.DataFrame(z_train).to_csv(f'cache/z_training_{s}.csv')
+        # print('saved')
 
         # print(np.shape(x_train))
         # x_prj = ap.PCA(x_train.T)
