@@ -290,19 +290,27 @@ class Approximator(object):
         return clf.predict
 
 
-    def check(self, cur, x, z):
+    def check(self, cur, x, z, visual=False):
         z_approx = np.zeros(len(z))
         for i in range(len(z)):
             z_approx[i] = cur([x[:,i]])
 
-        sigma = np.linalg.norm(z_approx-z)
-        mu = sigma/np.mean(z)
+        self.check_res = {
+            'mean': np.mean(z),
+            '2norm': np.linalg.norm(z_approx-z, 2),
+            'infnorm': np.linalg.norm(z_approx-z, np.inf),
+            'coe_var': np.linalg.norm(z_approx-z, 2)/np.linalg.norm(z_approx-z, np.inf),
+            'z': z,
+            'a_z': z_approx
+        }
 
-        logging.info(f'mean:z {np.mean(z)}, mean:z\' {np.mean(z_approx)} 2norm: {sigma}, cov: {mu}')
+        logging.info(f"mean:z {self.check_res['mean']}, mean:z\' {np.mean(z_approx)}, " \
+            f"2norm: {self.check_res['2norm']}, cov: {self.check_res['coe_var']}, infnorm: {self.check_res['infnorm']}")
 
-        t = np.arange(0, len(z), 1)
-        plt.plot(t, z, 'r--', t, z_approx, 'b--', z-z_approx, 'y--')
-        plt.show()
+        if visual:
+            t = np.arange(0, len(z), 1)
+            plt.plot(t, z, 'ro', t, z_approx, 'b*', z-z_approx, 'y--')
+            plt.show()
 
 
 
@@ -328,19 +336,19 @@ def demo(X):
         # z[i] = np.exp(np.sum(x[:,i]))
 
 
-    setting = {
-        'basis_size': 100,
-        'convex': True,
-    }
-    ap = Approximator()
-    cur = ap.quadratic_random_matrix(x, z, setting)
-    ap.check(cur, x, z)
+    # setting = {
+    #     'basis_size': 100,
+    #     'convex': True,
+    # }
+    # ap = Approximator()
+    # cur = ap.quadratic_random_matrix(x, z, setting)
+    # ap.check(cur, x, z)
 
     
-
-    # setting = {'basis_size': 100}
-    # cur = ap.RandomForest(x,z,setting)
-    # ap.check(cur, x, z)
+    ap = Approximator()
+    setting = {'basis_size': 100}
+    cur = ap.RandomForest(x,z,setting)
+    ap.check(cur, x, z)
     
     # x_prj = ap.PCA(x)
     # print(x[:,0],x_prj[:,0])
