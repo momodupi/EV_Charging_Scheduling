@@ -10,7 +10,7 @@ from scipy.optimize import linprog
 from scipy.optimize import minimize
 from scipy.linalg import null_space
 
-from sklearn import svm, linear_model, neural_network, preprocessing
+from sklearn import svm, linear_model, neural_network, preprocessing, decomposition
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -40,7 +40,7 @@ class Approximator(object):
         self.parameter = {}
 
         # reload(logging)
-        logging.basicConfig(level=logging.INFO, filename='ap_result.log')
+        # logging.basicConfig(level=logging.INFO, filename='ap_result.log')
 
     def theta_quadratic(self, p, x_size):
         _p = p.reshape( (x_size+1, x_size) )
@@ -267,6 +267,11 @@ class Approximator(object):
             return float(Y)
         return copy.deepcopy( cur )
 
+    def PCA(self, x):
+        # print(x.shape)
+        pca = decomposition.PCA(n_components=3)
+        return pca.fit_transform(x.T).T
+
 
     def check(self, cur, x, z):
         z_approx = np.zeros(len(z))
@@ -281,26 +286,40 @@ class Approximator(object):
 
 
 def demo(X):
+    logging.basicConfig(level=logging.INFO)
     np.random.seed(0)
     x = np.array(
         [
             np.random.uniform(0,10,X),
             np.random.uniform(0,20,X),
+            np.random.uniform(0,30,X),
+            np.zeros(X),
         ]
     )
     z = np.zeros(len(x[0,:]))
 
     for i,_z in enumerate(z):
+        z[i] = ( np.sum(x[:,i]) )**2
         # z[i] = ( np.sum(x[:,i]) )**2
-        z[i] = np.exp(np.sum(x[:,i]))
+        # z[i] = x[:,i].dot(x[:,i])
+        # z[i] = np.exp(np.sum(x[:,i]))
+
+    
+    
+
+    setting = {
+        'basis_size': 100,
+        'convex': True,
+    }
+    # ap = Approximator()
+    # cur = ap.quadratic_random_matrix(x, z, setting)
+    # ap.check(cur, x, z)
 
     ap = Approximator()
-
-    # setting = {
-    #     'basis_size': 10,
-    #     'convex': True,
-    # }
-    # cur = ap.quadratic_random_matrix(x,z, setting)
+    x_prj = ap.PCA(x)
+    print(x[:,0],x_prj[:,0])
+    # cur = ap.quadratic_random_matrix(x_prj, z, setting)
+    # ap.check(cur, x_prj, z)
 
     # cur = ap.bootstrapping(x,z)
 
@@ -317,27 +336,26 @@ def demo(X):
     # }
     # cur = ap.bagging(x,z, setting)
 
-    setting = {
-        'alpha': 10e-6,
-        'random_state': 1,
-        'hidden_layer': (5,5),
-        'solver': 'lbfgs',
-        'activation': 'relu',
-        'tol': 10e-3,
-        'max_iter': 50000,
-        'learning_rate': 'constant'
-    }
+    # setting = {
+    #     'alpha': 10e-6,
+    #     'random_state': 1,
+    #     'hidden_layer': (5,5),
+    #     'solver': 'lbfgs',
+    #     'activation': 'relu',
+    #     'tol': 10e-3,
+    #     'max_iter': 50000,
+    #     'learning_rate': 'constant'
+    # }
 
-    cur = ap.sklearn_neural(x,z, setting=setting)
+    # cur = ap.sklearn_neural(x,z, setting=setting)
 
-    boosts_err = 0
-    for i in range(len(z)):
-        # boosts_err += ( regr.predict( [x[:,i]] ) - z[i])**2
-        # boosts_err += ( ap.kernel[ap.method]( _x, r) - z[i])**2
-        boosts_err += ( cur([x[:,i]]) - z[i])**2
-
-    print(boosts_err)
+    # boosts_err = 0
+    # for i in range(len(z)):
+    #     # boosts_err += ( regr.predict( [x[:,i]] ) - z[i])**2
+    #     # boosts_err += ( ap.kernel[ap.method]( _x, r) - z[i])**2
+    #     boosts_err += ( cur([x[:,i]]) - z[i])**2
+    # print(boosts_err)
 
 
 if __name__ == "__main__":
-    demo(1000)
+    demo(2000)

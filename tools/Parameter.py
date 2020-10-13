@@ -253,7 +253,8 @@ class Parameter(object):
                         self.c_lin.append( self.v[s][t][mi][ni] )
 
         c_e = np.array( self.c[-self.time_horizon:] )*(-1)
-        self.c_lin = np.concatenate(( np.array(self.c_lin), c_e ))
+        # to mini
+        self.c_lin = -np.concatenate(( np.array(self.c_lin), c_e ))
         
         if self.readable:
             pd.DataFrame(self.c_lin).to_csv('cache/c_lin.csv')
@@ -495,18 +496,23 @@ class Parameter(object):
         if s not in self.cnt2tmn_s:
             self.cnt2tmn_s[s] = []
         
-        x = []
-        z = []
+        # x = []
+        # z = []
+        x = np.zeros(shape=(self.menu_n_size*self.menu_m_size*self.menu_n_size,2))
+        cnt = 0
         for t in range(s-self.menu_n_size+1, s+1):
             for mi,m in enumerate(self.menu['m']):
                 for ni,n in enumerate(self.menu['n']):
                     x_t = (self.w[t][mi][ni],self.z[s][t][mi][ni]) if t>=0 else (0,0)
-                    x.append( x_t )
+                    # x.append( x_t )
+                    x[cnt,0] = x_t[0]
+                    x[cnt,1] = x_t[1]
+                    cnt += 1
                     self.cnt2tmn_s[s].append((t,mi,ni))
                     # print(x_t)
         # print(x)
         # print(self.cnt2tmn_s[s])
-        return np.array(x)
+        return x.flatten().T
 
 
     def input_lagrange(self, s, mu_e, mu_ie):

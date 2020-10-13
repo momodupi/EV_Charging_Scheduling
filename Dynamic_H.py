@@ -115,16 +115,17 @@ def Generators_single_process(info):
     value_s = 0
     data = {}
     for i in range(info['time_horizon']):
-            data[i] = []
+        data[i] = []
     # terminal cost is useless: 0 ~ T-1
     for _s in range(1,pa.time_horizon+1):
         s = pa.time_horizon-_s
-        x_s = pa.get_state(ye, s).flatten().T
+        # x_s = pa.get_state(ye, s).flatten().T
+        x_s = pa.get_state(ye, s)
         for t in ye['y'][s]:
             for mi in ye['y'][s][t]:
                 for ni in ye['y'][s][t][mi]:
-                    value_s += ye['y'][s][t][mi][ni]*pa.v[s][t][mi][ni]
-            value_s -= pa.c[s]*ye['e'][s]
+                    value_s -= ye['y'][s][t][mi][ni]*pa.v[s][t][mi][ni]
+            value_s += pa.c[s]*ye['e'][s]
         z_s = value_s
         data[s].append( (x_s,z_s) )
     return data
@@ -132,64 +133,92 @@ def Generators_single_process(info):
 
 
 def Traning_Generators(data_size=0, info=None, mp=False):
+    process_pool = []
+    # result_queue = queue.Queue()
+    # result_queue = multiprocessing.Manager().Queue()
 
-    if not mp:
-        data = {}
-        # initialize x and z for each time
-        for i in range(info['time_horizon']):
-            data[i] = []
+    for cnt in range(data_size):
+        p_info = copy.deepcopy(info)
+        p_info['seed'] = cnt
+        process_pool.append(p_info)
 
-        for cnt in range(data_size):
-            info['seed'] = cnt
+    with multiprocessing.Pool() as pool:
+        data_list = pool.map( Generators_single_process, process_pool )
+        
+        # print(data_list)
+
+    data = {}
+    for i in range(info['time_horizon']):
+        data[i] = []
+    for s_data in data_list:
+        for s in s_data:
+            data[s].append(s_data[s][0])
+
+    with open('cache/training_data.pickle', 'wb') as pickle_file:
+        pickle.dump(data, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
+    # if not mp:
+    #     data = {}
+    #     # initialize x and z for each time
+    #     for i in range(info['time_horizon']):
+    #         data[i] = []
+
+    #     for cnt in range(data_size):
+    #         info['seed'] = cnt
+
+    #         s_data = Generators_single_process(info)
+        
+    #         for s in s_data:
+    #             data[s].append(s_data[s][0])
             
-            result = Static_H(info)
-            pa = result.pa
-            ye = result.result_output
-            pa.get_z(ye)
-            pa.readable = True
+    #         # result = Static_H(info)
+    #         # pa = result.pa
+    #         # ye = result.result_output
+    #         # pa.get_z(ye)
+    #         # pa.readable = True
 
-            value_s = 0
+    #         # value_s = 0
 
-            # terminal cost is useless: 0 ~ T-1
-            for s in range(0, pa.time_horizon):
-                x_s = pa.get_state(ye, s).flatten().T
-                for t in ye['y'][s]:
-                    for mi in ye['y'][s][t]:
-                        for ni in ye['y'][s][t][mi]:
-                            value_s += ye['y'][s][t][mi][ni]*pa.v[s][t][mi][ni]
-                    value_s -= pa.c[s]*ye['e'][s]
-                z_s = value_s
-                data[s].append( (x_s,z_s) )
+    #         # # terminal cost is useless: 0 ~ T-1
+    #         # for s in range(0, pa.time_horizon):
+    #         #     x_s = pa.get_state(ye, s).flatten().T
+    #         #     for t in ye['y'][s]:
+    #         #         for mi in ye['y'][s][t]:
+    #         #             for ni in ye['y'][s][t][mi]:
+    #         #                 value_s -= ye['y'][s][t][mi][ni]*pa.v[s][t][mi][ni]
+    #         #         value_s += pa.c[s]*ye['e'][s]
+    #         #     z_s = value_s
+    #         #     data[s].append( (x_s,z_s) )
 
-        with open('cache/training_data.pickle', 'wb') as pickle_file:
-            pickle.dump(data, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
+    #     # with open('cache/training_data.pickle', 'wb') as pickle_file:
+    #     #     pickle.dump(data, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
     
-    else:
-        # process_cnt = min(int(multiprocessing.cpu_count()/2), data_size)
-        process_pool = []
-        # result_queue = queue.Queue()
-        # result_queue = multiprocessing.Manager().Queue()
+    # else:
+    #     # process_cnt = min(int(multiprocessing.cpu_count()/2), data_size)
+    #     process_pool = []
+    #     # result_queue = queue.Queue()
+    #     # result_queue = multiprocessing.Manager().Queue()
 
-        for cnt in range(data_size):
-            p_info = copy.deepcopy(info)
-            p_info['seed'] = cnt
-            process_pool.append(p_info)
+    #     for cnt in range(data_size):
+    #         p_info = copy.deepcopy(info)
+    #         p_info['seed'] = cnt
+    #         process_pool.append(p_info)
 
-        with multiprocessing.Pool() as pool:
-            data_list = pool.map( Generators_single_process, process_pool )
+    #     with multiprocessing.Pool() as pool:
+    #         data_list = pool.map( Generators_single_process, process_pool )
             
-            # print(data_list)
+    #         # print(data_list)
 
-        data = {}
-        for i in range(info['time_horizon']):
-            data[i] = []
-        for s_data in data_list:
-            for s in s_data:
-                data[s].append(s_data[s][0])
+    #     data = {}
+    #     for i in range(info['time_horizon']):
+    #         data[i] = []
+    #     for s_data in data_list:
+    #         for s in s_data:
+    #             print(s_data[s][0])
+    #             data[s].append(s_data[s][0])
 
-        with open('cache/training_data.pickle', 'wb') as pickle_file:
-            pickle.dump(data, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
-        # print(data)
+    # with open('cache/training_data.pickle', 'wb') as pickle_file:
+    #     pickle.dump(data, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
+    # # print(data)
 
 def main():
     logging.basicConfig(level=logging.INFO)
@@ -199,17 +228,25 @@ def main():
         'unit': 'hour',
         'arrival_rate': 20, #/hour
         'RoC': 10, #kw
-        'BC': 30, #kwh
-        'm': 2,
-        'n': 2,
+        'BC': 50, #kwh
+        'm': 4,
+        'n': 4,
         'seed': 0
     }
-    Traning_Generators(2, info, True)
-
+    Traning_Generators(1, info, True)
 
     with open('cache/training_data.pickle', 'rb') as pickle_file:
         training_data = pickle.load(pickle_file)
+    for s in training_data:
+        # print(training_data[s])
+        for i in training_data[s]:
+            print(i)
 
+
+    # with open('cache/training_data_1000.pickle', 'rb') as pickle_file:
+    #     training_data = pickle.load(pickle_file)
+
+    
     # with open('cache/test_data.pickle', 'rb') as pickle_file:
     #     test_data = pickle.load(pickle_file)
 
@@ -217,7 +254,7 @@ def main():
 
     setting = {
         'convex': False,
-        'basis_size': 128,
+        'basis_size': 1000,
     }
 
     for s in training_data:
@@ -232,7 +269,15 @@ def main():
             x_train[:,k] = data_k[0]
             z_train[k] = data_k[1]
         
-        # cur = ap.quadratic_random_matrix(x_train, z_train, setting)
+        # pd.DataFrame(x_train).to_csv(f'cache/training_{s}.csv')
+        # print('saved')
+
+        # print(np.shape(x_train))
+        # x_prj = ap.PCA(x_train.T)
+        # print(np.shape(x_prj))
+        # cur = ap.quadratic_random_matrix(x_prj, z_train, setting)
+
+        cur = ap.quadratic_random_matrix(x_train, z_train, setting)
         # Q = ap.parameter['Q']
         # b = ap.parameter['b']
 
@@ -246,23 +291,25 @@ def main():
         # }
         # cur = ap.sklearn_svm(x_train,z_train, setting=setting)
 
-        setting = {
-            'alpha': 10e-6,
-            'random_state': 1,
-            'hidden_layer': (5,5),
-            'solver': 'lbfgs',
-            'activation': 'relu',
-            'tol': 10e-3,
-            'max_iter': 50000,
-            'learning_rate': 'constant'
-        }
+        # setting = {
+        #     'alpha': 10e-6,
+        #     'random_state': 1,
+        #     'hidden_layer': (5,5),
+        #     'solver': 'lbfgs',
+        #     'activation': 'relu',
+        #     'tol': 10e-3,
+        #     'max_iter': 50000,
+        #     'learning_rate': 'constant'
+        # }
 
-        cur = ap.sklearn_neural(x_train,z_train, setting=setting)
+        # cur = ap.sklearn_neural(x_train,z_train, setting=setting)
 
         # cur = ap.pytorch_neural(x_train,z_train, setting=None)
 
         print(f'training: s={s}')
         ap.check(cur, x_train, z_train)
+
+        # ap.check(cur, x_prj, z_train)
 
         
     #     x_test = np.zeros(shape=(x_size, data_size))

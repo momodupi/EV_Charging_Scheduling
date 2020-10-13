@@ -29,7 +29,7 @@ def scipy_LP(c, A_eq, b_eq, A_ub, b_ub):
     logging.info('LP: solver: scipy interior-point')
     logging.info('LP: Start')
     result = linprog(
-            c=-c, 
+            c=c, 
             A_eq=A_eq, 
             b_eq=b_eq, 
             A_ub=A_ub, 
@@ -54,7 +54,7 @@ def CVXOPT_LP(c, A_eq, b_eq, A_ub, b_ub):
     solvers.options['show_progress'] = False
     logging.info('LP: Start')
     result = solvers.lp(
-        c=matrix(-c), 
+        c=matrix(c), 
         G=matrix(A_ub), 
         h=matrix(b_ub), 
         A=matrix(A_eq), 
@@ -93,7 +93,7 @@ def Static_H(info):
 
 
     # dimentionality reduction
-    sq = Squeeze(A_eq=A_eq, b_eq=b_eq)
+    # sq = Squeeze(A_eq=A_eq, b_eq=b_eq)
 
     # k = int(np.shape(A_eq)[0]/4)+1
     # A_eq, b_eq = sq.Random_Projection(k=k, method='')
@@ -118,10 +118,10 @@ def main():
         'time_horizon': 48,
         'unit': 'hour',
         'arrival_rate': 20, #/hour
-        'RoC': 25, #kw
+        'RoC': 10, #kw
         'BC': 50, #kwh
-        'm': 2,
-        'n': 2,
+        'm': 4,
+        'n': 4,
         'seed': 0
     }
     Static_H(info)
