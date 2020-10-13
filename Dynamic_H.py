@@ -235,13 +235,8 @@ def main():
     }
     Traning_Generators(1, info, True)
 
-    with open('cache/training_data.pickle', 'rb') as pickle_file:
+    with open('cache/training_data_1000.pickle', 'rb') as pickle_file:
         training_data = pickle.load(pickle_file)
-    for s in training_data:
-        # print(training_data[s])
-        for i in training_data[s]:
-            print(i)
-
 
     # with open('cache/training_data_1000.pickle', 'rb') as pickle_file:
     #     training_data = pickle.load(pickle_file)
@@ -257,6 +252,8 @@ def main():
         'basis_size': 1000,
     }
 
+    approx = {}
+
     for s in training_data:
         # print(training_data[s])
         data_size = len(training_data[s])
@@ -269,8 +266,9 @@ def main():
             x_train[:,k] = data_k[0]
             z_train[k] = data_k[1]
         
-        # pd.DataFrame(x_train).to_csv(f'cache/training_{s}.csv')
-        # print('saved')
+        pd.DataFrame(x_train).to_csv(f'cache/x_training_{s}.csv')
+        pd.DataFrame(z_train).to_csv(f'cache/z_training_{s}.csv')
+        print('saved')
 
         # print(np.shape(x_train))
         # x_prj = ap.PCA(x_train.T)
@@ -311,7 +309,7 @@ def main():
 
         # ap.check(cur, x_prj, z_train)
 
-        
+        approx[s] = copy.deepcopy(ap)
     #     x_test = np.zeros(shape=(x_size, data_size))
     #     z_test = np.zeros(data_size)
         
@@ -320,6 +318,9 @@ def main():
     #         z_test[k] = data_k[1]
     #     print(f'test: s={s}')
     #     ap.check(cur, x_test, z_test)
+
+    with open('cache/approx.pickle', 'rb') as pickle_file:
+        pickle.dump(approx, pickle_file)
 
 
 if __name__ == "__main__":

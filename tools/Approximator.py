@@ -4,13 +4,22 @@ import sys
 import numpy as np
 import pandas as pd
 
+import matplotlib.pyplot as plt
+
+
 from numpy.linalg import matrix_rank, norm
 
 from scipy.optimize import linprog
 from scipy.optimize import minimize
 from scipy.linalg import null_space
 
-from sklearn import svm, linear_model, neural_network, preprocessing, decomposition
+from sklearn.svm import SVR
+from sklearn import linear_model
+from sklearn.neural_network import MLPRegressor
+# from sklearn import preprocessing
+from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestRegressor 
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -182,7 +191,7 @@ class Approximator(object):
 
 
     def sklearn_svm(self, x, z, setting):
-        regr = svm.SVR(
+        regr = SVR(
             kernel=setting['kernel'], 
             degree=setting['degree'], 
             gamma=setting['gamma'], 
@@ -194,7 +203,7 @@ class Approximator(object):
 
     
     def sklearn_neural(self, x, z, setting):
-        clf = neural_network.MLPRegressor(
+        clf = MLPRegressor(
             solver=setting['solver'], 
             alpha=setting['alpha'],
             learning_rate=setting['learning_rate'],
@@ -209,68 +218,76 @@ class Approximator(object):
         clf.fit(x.T, z)
         return clf.predict
 
-    def pytorch_neural(self, x, z, setting):
+    # def pytorch_neural(self, x, z, setting):
 
-        data_size = len(z)
-        x_size = len(x[:,0])
+    #     data_size = len(z)
+    #     x_size = len(x[:,0])
 
-        # torch.autograd.detect_anomaly()
+    #     # torch.autograd.detect_anomaly()
         
-        class Net(torch.nn.Module):
-            def __init__(self, n_feature, n_hidden, n_output):
-                super(Net, self).__init__()
-                self.hidden = torch.nn.Linear(n_feature, n_hidden)   # hidden layer
-                self.predict = torch.nn.Linear(n_hidden, n_output)   # output layer
+    #     class Net(torch.nn.Module):
+    #         def __init__(self, n_feature, n_hidden, n_output):
+    #             super(Net, self).__init__()
+    #             self.hidden = torch.nn.Linear(n_feature, n_hidden)   # hidden layer
+    #             self.predict = torch.nn.Linear(n_hidden, n_output)   # output layer
 
-            def forward(self, x):
-                x = F.relu(self.hidden(x))      # activation function for hidden layer
-                x = self.predict(x)             # linear output
-                return x
-        net = nn.Sequential(nn.Linear(x_size, 20), 
-                    nn.ReLU(), nn.Linear(20, 20),
-                    nn.ReLU(), nn.Linear(20, 20),
-                    nn.ReLU(), nn.Linear(20, 20),
-                    nn.ReLU(), nn.Linear(20, 20), 
-                    nn.ReLU(), nn.Linear(20, 1))
-        optimizer = torch.optim.SGD(net.parameters(), lr=0.2)
+    #         def forward(self, x):
+    #             x = F.relu(self.hidden(x))      # activation function for hidden layer
+    #             x = self.predict(x)             # linear output
+    #             return x
+    #     net = nn.Sequential(nn.Linear(x_size, 20), 
+    #                 nn.ReLU(), nn.Linear(20, 20),
+    #                 nn.ReLU(), nn.Linear(20, 20),
+    #                 nn.ReLU(), nn.Linear(20, 20),
+    #                 nn.ReLU(), nn.Linear(20, 20), 
+    #                 nn.ReLU(), nn.Linear(20, 1))
+    #     optimizer = torch.optim.SGD(net.parameters(), lr=0.2)
 
         
-        X = torch.zeros([data_size,x_size])
-        Y = torch.zeros([data_size,1])
-        for i in range(data_size):
-            # for j in range(x_size):
-            X[i,:] = torch.from_numpy(x[:,i])
-        Y[:,0] = torch.from_numpy(z)
-        # print(X,Y)
-        # X = torch.from_numpy(x.T)
-        # Y = torch.from_numpy(z)
-        # _X = torch.norm(X, p=2).detach()
-        # X = _X.div(_X.expand_as(X))
+    #     X = torch.zeros([data_size,x_size])
+    #     Y = torch.zeros([data_size,1])
+    #     for i in range(data_size):
+    #         # for j in range(x_size):
+    #         X[i,:] = torch.from_numpy(x[:,i])
+    #     Y[:,0] = torch.from_numpy(z)
+    #     # print(X,Y)
+    #     # X = torch.from_numpy(x.T)
+    #     # Y = torch.from_numpy(z)
+    #     # _X = torch.norm(X, p=2).detach()
+    #     # X = _X.div(_X.expand_as(X))
 
-        for t in range(1000):
-            prediciton = net(X)
-            loss_func = torch.nn.MSELoss()
-            loss = loss_func(prediciton, Y)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            # print(loss)
+    #     for t in range(1000):
+    #         prediciton = net(X)
+    #         loss_func = torch.nn.MSELoss()
+    #         loss = loss_func(prediciton, Y)
+    #         optimizer.zero_grad()
+    #         loss.backward()
+    #         optimizer.step()
+    #         # print(loss)
 
-        def cur(x):
-            # print(x)
-            _x_size = len(x[0])
-            X = torch.zeros([1,_x_size])
-            for i in range(_x_size):
-                X[0,i] = x[0][i]
-            Y = net(X[0,:])
-            print(Y[0])
-            return float(Y)
-        return copy.deepcopy( cur )
+    #     def cur(x):
+    #         # print(x)
+    #         _x_size = len(x[0])
+    #         X = torch.zeros([1,_x_size])
+    #         for i in range(_x_size):
+    #             X[0,i] = x[0][i]
+    #         Y = net(X[0,:])
+    #         print(Y[0])
+    #         return float(Y)
+    #     return copy.deepcopy( cur )
 
     def PCA(self, x):
         # print(x.shape)
-        pca = decomposition.PCA(n_components=3)
+        pca = PCA(n_components=3)
         return pca.fit_transform(x.T).T
+
+
+    def RandomForest(self, x, z, setting):
+        n_estimators = setting['basis_size']
+        clf = RandomForestRegressor (n_estimators=n_estimators)
+        # print(x.T,z)
+        clf.fit(x.T, z)
+        return clf.predict
 
 
     def check(self, cur, x, z):
@@ -282,6 +299,12 @@ class Approximator(object):
         mu = sigma/np.mean(z)
 
         logging.info(f'mean:z {np.mean(z)}, mean:z\' {np.mean(z_approx)} 2norm: {sigma}, cov: {mu}')
+
+        t = np.arange(0, len(z), 1)
+        plt.plot(t, z, 'r--', t, z_approx, 'b--', z-z_approx, 'y--')
+        plt.show()
+
+
 
 
 
@@ -299,25 +322,28 @@ def demo(X):
     z = np.zeros(len(x[0,:]))
 
     for i,_z in enumerate(z):
+        # z[i] = ( np.sum(x[:,i]) )**4
         z[i] = ( np.sum(x[:,i]) )**2
-        # z[i] = ( np.sum(x[:,i]) )**2
         # z[i] = x[:,i].dot(x[:,i])
         # z[i] = np.exp(np.sum(x[:,i]))
 
-    
-    
 
     setting = {
         'basis_size': 100,
         'convex': True,
     }
-    # ap = Approximator()
-    # cur = ap.quadratic_random_matrix(x, z, setting)
-    # ap.check(cur, x, z)
-
     ap = Approximator()
-    x_prj = ap.PCA(x)
-    print(x[:,0],x_prj[:,0])
+    cur = ap.quadratic_random_matrix(x, z, setting)
+    ap.check(cur, x, z)
+
+    
+
+    # setting = {'basis_size': 100}
+    # cur = ap.RandomForest(x,z,setting)
+    # ap.check(cur, x, z)
+    
+    # x_prj = ap.PCA(x)
+    # print(x[:,0],x_prj[:,0])
     # cur = ap.quadratic_random_matrix(x_prj, z, setting)
     # ap.check(cur, x_prj, z)
 
