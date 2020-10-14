@@ -220,6 +220,59 @@ def Traning_Generators(data_size=0, info=None, mp=False):
     #     pickle.dump(data, pickle_file, protocol=pickle.HIGHEST_PROTOCOL) 
     # # print(data)
 
+
+def Fitting_single_process(args):
+    training_data = args['d']
+    method = args['m']
+    
+    approx = {}
+
+    for s in training_data:
+        # print(training_data[s])
+        data_size = len(training_data[s])
+        x_size = len(training_data[s][0][0])
+
+        x_train = np.zeros(shape=(x_size, data_size))
+        z_train = np.zeros(data_size)
+        
+        for k,data_k in enumerate(training_data[s]):
+            x_train[:,k] = data_k[0]
+            z_train[k] = data_k[1]
+
+        ap = Approximator()
+
+        if method == 'rq_1000':
+            setting = {
+                'convex': True,
+                'basis_size': 1000,
+            }
+            cur = ap.quadratic_random_matrix(x_train, z_train, setting)
+        elif method == 'rq_10000':
+            setting = {
+                'convex': True,
+                'basis_size': 1000,
+            }
+            cur = ap.quadratic_random_matrix(x_train, z_train, setting)
+        elif method == 'rf_1000':
+            setting = {
+                'basis_size': 1000,
+            }
+            cur = ap.RandomForest(x_train, z_train, setting)
+        else:
+            setting = {
+                'basis_size': 10000,
+            }
+            cur = ap.RandomForest(x_train, z_train, setting)
+
+        # print(f'training: s={s}')
+        ap.check(cur, x_train, z_train)
+        approx[s] = copy.deepcopy(ap)
+
+    with open(f'cache/approx_{method}.pickle', 'wb') as pickle_file:
+        pickle.dump(approx, pickle_file)
+
+
+
 def main():
     logging.basicConfig(level=logging.INFO)
     # Dynamic_H()
@@ -235,92 +288,112 @@ def main():
     }
     # Traning_Generators(1, info, True)
 
-    with open('cache/training_data_1000.pickle', 'rb') as pickle_file:
+    with open('cache/training_data.pickle', 'rb') as pickle_file:
         training_data = pickle.load(pickle_file)
+
+    process_pool = [
+        {'d': copy.deepcopy(training_data), 'm': 'rq_1000'},
+        {'d': copy.deepcopy(training_data), 'm': 'rq_10000'},
+        {'d': copy.deepcopy(training_data), 'm': 'rf_1000'},
+        {'d': copy.deepcopy(training_data), 'm': 'rf_10000'}
+     ]
+
+    with multiprocessing.Pool() as pool:
+        pool.map( Fitting_single_process, process_pool )
 
     # with open('cache/training_data_1000.pickle', 'rb') as pickle_file:
     #     training_data = pickle.load(pickle_file)
 
+
+    # with open('cache/approx_rf_10000.pickle', 'rb') as pickle_file:
+    #     ap = pickle.load(pickle_file)
+    # print(ap[0].check_res)
     
     # with open('cache/test_data.pickle', 'rb') as pickle_file:
     #     test_data = pickle.load(pickle_file)
 
-    ap = Approximator()
+    # ap = Approximator()
 
-    setting = {
-        'convex': False,
-        'basis_size': 1000,
-    }
+    # setting = {
+    #     'convex': True,
+    #     'basis_size': 1,
+    # }
 
-    approx = {}
+    # approx = {}
 
-    for s in training_data:
-        # print(training_data[s])
-        data_size = len(training_data[s])
-        x_size = len(training_data[s][0][0])
+    # for s in training_data:
+    #     # print(training_data[s])
+    #     data_size = len(training_data[s])
+    #     x_size = len(training_data[s][0][0])
 
-        x_train = np.zeros(shape=(x_size, data_size))
-        z_train = np.zeros(data_size)
+    #     x_train = np.zeros(shape=(x_size, data_size))
+    #     z_train = np.zeros(data_size)
         
-        for k,data_k in enumerate(training_data[s]):
-            x_train[:,k] = data_k[0]
-            z_train[k] = data_k[1]
+    #     for k,data_k in enumerate(training_data[s]):
+    #         x_train[:,k] = data_k[0]
+    #         z_train[k] = data_k[1]
         
-        # pd.DataFrame(x_train).to_csv(f'cache/x_training_{s}.csv')
-        # pd.DataFrame(z_train).to_csv(f'cache/z_training_{s}.csv')
-        # print('saved')
+    #     # pd.DataFrame(x_train).to_csv(f'cache/x_training_{s}.csv')
+    #     # pd.DataFrame(z_train).to_csv(f'cache/z_training_{s}.csv')
+    #     # print('saved')
 
-        # print(np.shape(x_train))
-        # x_prj = ap.PCA(x_train.T)
-        # print(np.shape(x_prj))
-        # cur = ap.quadratic_random_matrix(x_prj, z_train, setting)
+    #     # print(np.shape(x_train))
+    #     # x_prj = ap.PCA(x_train.T)
+    #     # print(np.shape(x_prj))
+    #     # cur = ap.quadratic_random_matrix(x_prj, z_train, setting)
+    #     ap = Approximator()
 
-        cur = ap.quadratic_random_matrix(x_train, z_train, setting)
-        # Q = ap.parameter['Q']
-        # b = ap.parameter['b']
+    #     setting = {
+    #         'convex': True,
+    #         'basis_size': 1000,
+    #     }
+    #     cur = ap.quadratic_random_matrix(x_train, z_train, setting)
+    #     # Q = ap.parameter['Q']
+    #     # b = ap.parameter['b']
 
-        # print( np.all(np.linalg.eigvals(Q) > 0) )
+    #     # print( np.all(np.linalg.eigvals(Q) > 0) )
 
-        # setting = {
-        #     'kernel': 'poly',
-        #     'degree': 2,
-        #     'gamma': 'auto',
-        #     'tol': 10e-6
-        # }
-        # cur = ap.sklearn_svm(x_train,z_train, setting=setting)
+    #     # setting = {
+    #     #     'kernel': 'poly',
+    #     #     'degree': 2,
+    #     #     'gamma': 'auto',
+    #     #     'tol': 10e-6
+    #     # }
+    #     # cur = ap.sklearn_svm(x_train,z_train, setting=setting)
 
-        # setting = {
-        #     'alpha': 10e-6,
-        #     'random_state': 1,
-        #     'hidden_layer': (5,5),
-        #     'solver': 'lbfgs',
-        #     'activation': 'relu',
-        #     'tol': 10e-3,
-        #     'max_iter': 50000,
-        #     'learning_rate': 'constant'
-        # }
+    #     # setting = {
+    #     #     'alpha': 10e-6,
+    #     #     'random_state': 1,
+    #     #     'hidden_layer': (5,5),
+    #     #     'solver': 'lbfgs',
+    #     #     'activation': 'relu',
+    #     #     'tol': 10e-3,
+    #     #     'max_iter': 50000,
+    #     #     'learning_rate': 'constant'
+    #     # }
 
-        # cur = ap.sklearn_neural(x_train,z_train, setting=setting)
+    #     # cur = ap.sklearn_neural(x_train,z_train, setting=setting)
 
-        # cur = ap.pytorch_neural(x_train,z_train, setting=None)
+    #     # cur = ap.pytorch_neural(x_train,z_train, setting=None)
 
-        print(f'training: s={s}')
-        ap.check(cur, x_train, z_train)
+    #     print(f'training: s={s}')
+    #     ap.check(cur, x_train, z_train)
 
-        # ap.check(cur, x_prj, z_train)
+    #     # ap.check(cur, x_prj, z_train)
 
-        approx[s] = copy.deepcopy(ap)
-    #     x_test = np.zeros(shape=(x_size, data_size))
-    #     z_test = np.zeros(data_size)
+    #     approx[s] = copy.deepcopy(ap)
+    # #     x_test = np.zeros(shape=(x_size, data_size))
+    # #     z_test = np.zeros(data_size)
         
-    #     for k,data_k in enumerate(test_data[s]):
-    #         x_test[:,k] = data_k[0]
-    #         z_test[k] = data_k[1]
-    #     print(f'test: s={s}')
-    #     ap.check(cur, x_test, z_test)
+    # #     for k,data_k in enumerate(test_data[s]):
+    # #         x_test[:,k] = data_k[0]
+    # #         z_test[k] = data_k[1]
+    # #     print(f'test: s={s}')
+    # #     ap.check(cur, x_test, z_test)
 
-    with open('cache/approx.pickle', 'rb') as pickle_file:
-        pickle.dump(approx, pickle_file)
+    # with open('cache/approx.pickle', 'wb') as pickle_file:
+    #     pickle.dump(approx, pickle_file)
+
 
 
 if __name__ == "__main__":
