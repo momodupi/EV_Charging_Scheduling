@@ -80,7 +80,7 @@ def Static_H(info):
         for mi,m in enumerate(ar.menu['m']):
             arrival_matrix[t][mi] = {}
             for ni,n in enumerate(ar.menu['n']):
-                arrival_matrix[t][mi][ni] = 5
+                arrival_matrix[t][mi][ni] = 20
     ar.simple_arrivals(arrival_matrix)
     # print(ar.w)
     

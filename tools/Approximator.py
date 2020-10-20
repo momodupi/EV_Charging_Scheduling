@@ -20,10 +20,10 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestRegressor 
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.autograd import Variable
+# import torch
+# import torch.nn as nn
+# import torch.nn.functional as F
+# from torch.autograd import Variable
 
 import json
 import pickle
@@ -66,6 +66,38 @@ class Approximator(object):
         b = self.parameter['b']
         return _x.T.dot(Q.dot(_x))+b.T.dot(_x)
 
+    def phi_xlnx(self, x):
+        return 0
+
+    def fast_linear_regression(self, x=0, z=0):
+        """
+        x_avg: average of previous x, if no previous sample, set to 0
+        z_avg: average of previous z, if no previous sample, set to 0
+        Sxz: covariance of previous x and z, if no previous sample, set to 0
+        Sx: variance of previous x, if no previous sample, set to 0
+        n: number of previous samples
+        new_x: new incoming n-D numpy array x
+        new_z: new incoming 1-D numpy array z
+        """
+
+        new_x = x.reshape(-1,1)
+        x_avg = np.average(new_x)
+        z_avg = np.average(z)
+        Sxz=0
+        Sx=0
+        n=len(new_x)
+
+        x_star = x_avg*np.sqrt(n) / np.sqrt(n)
+        z_star = z_avg*np.sqrt(n) / np.sqrt(n)
+
+        new_Sx = Sx + np.sum((new_x-x_star)**2)
+        new_Sxz = Sxz + np.sum((new_x-x_star).reshape(-1) * (z-z_star).reshape(-1))
+
+        beta = new_Sxz/new_Sx
+        alpha = z_avg - beta * x_avg
+        return beta
+
+
     def quadratic_random_matrix(self, x, z, setting):
         basis_size = setting['basis_size']
         seed = 0 if 'seed' not in setting else setting['seed']
@@ -94,16 +126,19 @@ class Approximator(object):
         all_b = np.array( [ b_basis[i] for i in range(basis_size) ] ).T
         Q_hat = {}
         b_hat = {}
+
+        beta = np.zeros(shape=(data_size, basis_size))
         for i in range(data_size):
             # linearly fit (z_bar,z) without b
             reg = linear_model.LinearRegression(fit_intercept=False)
             # fit: |[beta]_i * [z_bar]_i - z_i| for each i
             reg.fit([z_bar[i,:].T], [z[i]])
-            beta = reg.coef_
+            # beta = reg.coef_
+            beta[i,:] = reg.coef_
             
             # optimal Q,b for each i: Q_hat = \sum_j beta_j*Q_j
-            Q_hat[i] = all_Q.dot(beta).reshape((x_size,x_size))
-            b_hat[i] = all_b.dot(beta)
+            Q_hat[i] = all_Q.dot(beta[i,:]).reshape((x_size,x_size))
+            b_hat[i] = all_b.dot(beta[i,:])
 
         # calculate z_hat: values for each ((Q_hat,b_hat),z) pair
         z_hat = np.zeros(shape=(data_size,data_size))
@@ -121,10 +156,55 @@ class Approximator(object):
         all_b = np.array( [ b_hat[i] for i in range(data_size) ] ).T
         Q = all_Q.dot(alpha).reshape((x_size,x_size))
         b = all_b.dot(alpha)
+        self.parameter['w'] = alpha.dot(beta)
+        self.parameter['Q'] = Q
+        self.parameter['b'] = b
 
+        return copy.deepcopy(self.phi_quadratic)
+
+
+    def quadratic_random_matrix_fast(self, x, z, setting):
+        basis_size = setting['basis_size']
+        seed = 0 if 'seed' not in setting else setting['seed']
+        convex = setting['convex']
+
+        data_size = len(z)
+        x_size = len(x[:,0])
+
+        np.random.seed(seed)
+
+        # generate basis and z_bar
+        Q_basis = {}
+        b_basis = {}
+        # z_bar are values for each ((Q,b),z) pair
+        z_bar = np.zeros(shape=(data_size, basis_size))
+        for i in range(data_size):
+            for k in range(basis_size):
+                Q_basis[k] = np.random.rand(x_size,x_size)
+                Q_basis[k] = Q_basis[k].dot(Q_basis[k]) if convex else -Q_basis[k].dot(Q_basis[k])
+                b_basis[k] = np.random.normal(0, 1, x_size)
+
+                z_bar[i,k] = x[:,i].T.dot(Q_basis[k].dot(x[:,i])) + x[:,i].dot(b_basis[k])
+
+        
+        # linearly fit (z_hat,z) without b, z_hat is a matrix
+        reg = linear_model.LinearRegression(fit_intercept=False)
+        reg.fit(z_bar, z)
+        alpha = reg.coef_
+        # print(alpha)
+
+        all_Q = np.array( [ Q_basis[i] for i in range(basis_size) ] ).T
+        all_b = np.array( [ b_basis[i] for i in range(basis_size) ] ).T
+        Q = all_Q.dot(alpha).reshape((x_size,x_size))
+        b = all_b.dot(alpha)
+        self.parameter['w'] = alpha
         self.parameter['Q'] = Q
         self.parameter['b'] = b
         return copy.deepcopy(self.phi_quadratic)
+
+    def bergman(self, x, z):
+
+        return 0
 
 
     def bootstrapping(self, x, z):
@@ -218,63 +298,6 @@ class Approximator(object):
         clf.fit(x.T, z)
         return clf.predict
 
-    # def pytorch_neural(self, x, z, setting):
-
-    #     data_size = len(z)
-    #     x_size = len(x[:,0])
-
-    #     # torch.autograd.detect_anomaly()
-        
-    #     class Net(torch.nn.Module):
-    #         def __init__(self, n_feature, n_hidden, n_output):
-    #             super(Net, self).__init__()
-    #             self.hidden = torch.nn.Linear(n_feature, n_hidden)   # hidden layer
-    #             self.predict = torch.nn.Linear(n_hidden, n_output)   # output layer
-
-    #         def forward(self, x):
-    #             x = F.relu(self.hidden(x))      # activation function for hidden layer
-    #             x = self.predict(x)             # linear output
-    #             return x
-    #     net = nn.Sequential(nn.Linear(x_size, 20), 
-    #                 nn.ReLU(), nn.Linear(20, 20),
-    #                 nn.ReLU(), nn.Linear(20, 20),
-    #                 nn.ReLU(), nn.Linear(20, 20),
-    #                 nn.ReLU(), nn.Linear(20, 20), 
-    #                 nn.ReLU(), nn.Linear(20, 1))
-    #     optimizer = torch.optim.SGD(net.parameters(), lr=0.2)
-
-        
-    #     X = torch.zeros([data_size,x_size])
-    #     Y = torch.zeros([data_size,1])
-    #     for i in range(data_size):
-    #         # for j in range(x_size):
-    #         X[i,:] = torch.from_numpy(x[:,i])
-    #     Y[:,0] = torch.from_numpy(z)
-    #     # print(X,Y)
-    #     # X = torch.from_numpy(x.T)
-    #     # Y = torch.from_numpy(z)
-    #     # _X = torch.norm(X, p=2).detach()
-    #     # X = _X.div(_X.expand_as(X))
-
-    #     for t in range(1000):
-    #         prediciton = net(X)
-    #         loss_func = torch.nn.MSELoss()
-    #         loss = loss_func(prediciton, Y)
-    #         optimizer.zero_grad()
-    #         loss.backward()
-    #         optimizer.step()
-    #         # print(loss)
-
-    #     def cur(x):
-    #         # print(x)
-    #         _x_size = len(x[0])
-    #         X = torch.zeros([1,_x_size])
-    #         for i in range(_x_size):
-    #             X[0,i] = x[0][i]
-    #         Y = net(X[0,:])
-    #         print(Y[0])
-    #         return float(Y)
-    #     return copy.deepcopy( cur )
 
     def PCA(self, x):
         # print(x.shape)
@@ -336,19 +359,23 @@ def demo(X):
         # z[i] = np.exp(np.sum(x[:,i]))
 
 
-    # setting = {
-    #     'basis_size': 100,
-    #     'convex': True,
-    # }
-    # ap = Approximator()
-    # cur = ap.quadratic_random_matrix(x, z, setting)
-    # ap.check(cur, x, z)
 
-    
+    setting = {
+        'basis_size': 100,
+        'convex': True,
+    }
     ap = Approximator()
-    setting = {'basis_size': 100}
-    cur = ap.RandomForest(x,z,setting)
+    cur = ap.quadratic_random_matrix(x, z, setting)
+    # print(ap.parameter['Q'], ap.parameter['b'])
     ap.check(cur, x, z)
+    # cur = ap.quadratic_random_matrix_fast(x, z, setting)
+    # ap.check(cur, x, z)
+    # print(ap.parameter['Q'], ap.parameter['b'])
+    
+    # ap = Approximator()
+    # setting = {'basis_size': 100}
+    # cur = ap.RandomForest(x,z,setting)
+    # ap.check(cur, x, z)
     
     # x_prj = ap.PCA(x)
     # print(x[:,0],x_prj[:,0])

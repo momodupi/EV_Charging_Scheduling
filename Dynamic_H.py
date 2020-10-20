@@ -241,28 +241,12 @@ def Fitting_single_process(args):
 
         ap = Approximator()
 
-        if method == 'rq_1000':
-            setting = {
-                'convex': True,
-                'basis_size': 1000,
-            }
-            cur = ap.quadratic_random_matrix(x_train, z_train, setting)
-        elif method == 'rq_10000':
-            setting = {
-                'convex': True,
-                'basis_size': 1000,
-            }
-            cur = ap.quadratic_random_matrix(x_train, z_train, setting)
-        elif method == 'rf_1000':
-            setting = {
-                'basis_size': 1000,
-            }
-            cur = ap.RandomForest(x_train, z_train, setting)
-        else:
-            setting = {
-                'basis_size': 10000,
-            }
-            cur = ap.RandomForest(x_train, z_train, setting)
+        method_set = {
+            'rq_1000': ap.quadratic_random_matrix(x_train, z_train, {'convex': True,'basis_size': 1000}),
+            'rq_10000': ap.quadratic_random_matrix(x_train, z_train, {'convex': True,'basis_size': 10000}),
+        }
+        cur = method_set['method']
+
 
         # print(f'training: s={s}')
         ap.check(cur, x_train, z_train)
@@ -291,11 +275,10 @@ def main():
     with open('cache/training_data.pickle', 'rb') as pickle_file:
         training_data = pickle.load(pickle_file)
 
+
     process_pool = [
         {'d': copy.deepcopy(training_data), 'm': 'rq_1000'},
-        {'d': copy.deepcopy(training_data), 'm': 'rq_10000'},
-        {'d': copy.deepcopy(training_data), 'm': 'rf_1000'},
-        {'d': copy.deepcopy(training_data), 'm': 'rf_10000'}
+        {'d': copy.deepcopy(training_data), 'm': 'rq_10000'}
      ]
 
     with multiprocessing.Pool() as pool:
