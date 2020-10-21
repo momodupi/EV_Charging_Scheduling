@@ -171,7 +171,7 @@ class Parameter(object):
 
 
     def get_c(self):
-        c = []
+        # c = []
         def c_s(s):
             # base_price = 0.12 # $/kWh
             # return (1+price_turbulance(s)) * base_price
@@ -181,8 +181,9 @@ class Parameter(object):
             # return 0.09341
 
         
-        for s in range(self.time_horizon):
-            c.append(c_s(s=s))
+        # for s in range(self.time_horizon):
+        #     c.append(c_s(s=s))
+        c = [ c_s(s) for s in range(self.time_horizon) ]
 
         with open('cache/c.pickle', 'wb') as pickle_file:
             pickle.dump(c, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
@@ -190,11 +191,12 @@ class Parameter(object):
 
 
     def get_d(self):
-        d = []
+        # d = []
         def d_s(s):
-            return 2000. # kWh
-        for s in range(self.time_horizon):
-            d.append(d_s(s=s))
+            return 20000. # kWh
+        # for s in range(self.time_horizon):
+        #     d.append(d_s(s=s))
+        d = [ d_s(s) for s in range(self.time_horizon) ]
         
         with open('cache/d.pickle', 'wb') as pickle_file:
             pickle.dump(d, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)

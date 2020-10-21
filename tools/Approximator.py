@@ -67,7 +67,7 @@ class Approximator(object):
         return _x.T.dot(Q.dot(_x))+b.T.dot(_x)
 
     def phi_xlnx(self, x):
-        return 0
+        return np.log(x).sum()
 
     def fast_linear_regression(self, x=0, z=0):
         """
@@ -159,7 +159,7 @@ class Approximator(object):
         self.parameter['w'] = alpha.dot(beta)
         self.parameter['Q'] = Q
         self.parameter['b'] = b
-
+        
         return copy.deepcopy(self.phi_quadratic)
 
 
@@ -202,9 +202,16 @@ class Approximator(object):
         self.parameter['b'] = b
         return copy.deepcopy(self.phi_quadratic)
 
-    def bergman(self, x, z):
-
-        return 0
+    def bergman(self, x, cnt):
+        def sc_1(x):
+            return x.dot(x.T) + np.sum(-np.log(x))
+        def sc_2(x):
+            return x.dot(x.T) + x.dot( np.log(x) )
+        def sc_3(x):
+            p_Q = np.random.rand(len(x),len(x))
+            return x.dot( np.eye(len(x)) + p_Q.dot(p_Q) ).dot(x.T)
+        st_conv = [ sc_1, sc_2, sc_3 ]
+        return st_conv[cnt](x)
 
 
     def bootstrapping(self, x, z):
@@ -326,7 +333,7 @@ class Approximator(object):
             'z': z,
             'a_z': z_approx
         }
-
+        
         logging.info(f"mean:z {self.check_res['mean']}, mean:z\' {np.mean(z_approx)}, " \
             f"2norm: {self.check_res['2norm']}, cov: {self.check_res['coe_var']}, infnorm: {self.check_res['infnorm']}")
 

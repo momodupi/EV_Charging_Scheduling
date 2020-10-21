@@ -25,7 +25,7 @@ import copy
 import pickle
 import time
 import multiprocessing
-
+import os
 
 
 
@@ -71,8 +71,8 @@ def CVXOPT_LP(s, pa, ye):
 
 
 def Dynamic_H():
-    logging.basicConfig(level=logging.INFO)
-    np.set_printoptions(threshold=sys.maxsize)
+    # logging.basicConfig(level=logging.INFO)
+    # np.set_printoptions(threshold=sys.maxsize)
 
 
     with open('cache/result_static.pickle', 'rb') as pickle_file:
@@ -223,9 +223,19 @@ def Traning_Generators(data_size=0, info=None, mp=False):
 
 def Fitting_single_process(args):
     training_data = args['d']
-    method = args['m']
+    settings = args['m'].split('_')
+
+    method = settings[0]
+    assert_set = {
+        'rq': 2,
+    }
+    assert len(settings) == assert_set[method]
+
+    setting_set = {
+        'rq': {'convex': True, 'basis_size': int(settings[1])}
+    }
     
-    approx = {}
+    # approx = {}
 
     for s in training_data:
         # print(training_data[s])
@@ -240,25 +250,36 @@ def Fitting_single_process(args):
             z_train[k] = data_k[1]
 
         ap = Approximator()
-
         method_set = {
-            'rq_1000': ap.quadratic_random_matrix(x_train, z_train, {'convex': True,'basis_size': 1000}),
-            'rq_10000': ap.quadratic_random_matrix(x_train, z_train, {'convex': True,'basis_size': 10000}),
+            'rq': ap.quadratic_random_matrix,
         }
-        cur = method_set['method']
+        cur = method_set[method]( x_train, z_train, setting_set[method] )
 
 
         # print(f'training: s={s}')
         ap.check(cur, x_train, z_train)
-        approx[s] = copy.deepcopy(ap)
+        ap_s = copy.deepcopy(ap)
 
-    with open(f'cache/approx_{method}.pickle', 'wb') as pickle_file:
-        pickle.dump(approx, pickle_file)
+        with open(f'cache/approx_{args["m"]}_{s}.pickle', 'wb') as pickle_file:
+            pickle.dump(ap_s, pickle_file)
+
+    ap_set = []
+    for s in training_data:
+        with open(f'cache/approx_{args["m"]}_{s}.pickle', 'rb') as pickle_file:
+            ap_s = pickle.load(pickle_file)
+        ap_set.append(ap_s)
+
+    with open(f'cache/approx_{args["m"]}.pickle', 'wb') as pickle_file:
+        pickle.dump(ap_set, pickle_file)
+    
+    for s in training_data:
+        if os.path.exists(f'cache/approx_{args["m"]}_{s}.pickle'):
+            os.remove(f'cache/approx_{args["m"]}_{s}.pickle')
 
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, filename='ap_res.log')
     # Dynamic_H()
     info = {
         'time_horizon': 48,
@@ -270,15 +291,15 @@ def main():
         'n': 4,
         'seed': 0
     }
-    # Traning_Generators(1, info, True)
+    Traning_Generators(1, info, True)
 
     with open('cache/training_data.pickle', 'rb') as pickle_file:
         training_data = pickle.load(pickle_file)
 
 
     process_pool = [
-        {'d': copy.deepcopy(training_data), 'm': 'rq_1000'},
-        {'d': copy.deepcopy(training_data), 'm': 'rq_10000'}
+        {'d': copy.deepcopy(training_data), 'm': 'rq_10'},
+        # {'d': copy.deepcopy(training_data), 'm': 'rq_10000'}
      ]
 
     with multiprocessing.Pool() as pool:

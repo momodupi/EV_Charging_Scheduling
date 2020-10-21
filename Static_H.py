@@ -80,7 +80,7 @@ def Static_H(info):
         for mi,m in enumerate(ar.menu['m']):
             arrival_matrix[t][mi] = {}
             for ni,n in enumerate(ar.menu['n']):
-                arrival_matrix[t][mi][ni] = 20
+                arrival_matrix[t][mi][ni] = info['arrival_rate']
     ar.simple_arrivals(arrival_matrix)
     # print(ar.w)
     
@@ -117,7 +117,7 @@ def main():
     info = {
         'time_horizon': 48,
         'unit': 'hour',
-        'arrival_rate': 20, #/hour
+        'arrival_rate': 30, #/hour
         'RoC': 10, #kw
         'BC': 50, #kwh
         'm': 4,
