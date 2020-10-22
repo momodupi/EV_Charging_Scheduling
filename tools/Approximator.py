@@ -1,3 +1,4 @@
+import enum
 import sys
 
 
@@ -66,36 +67,6 @@ class Approximator(object):
         b = self.parameter['b']
         return _x.T.dot(Q.dot(_x))+b.T.dot(_x)
 
-    def phi_xlnx(self, x):
-        return np.log(x).sum()
-
-    def fast_linear_regression(self, x=0, z=0):
-        """
-        x_avg: average of previous x, if no previous sample, set to 0
-        z_avg: average of previous z, if no previous sample, set to 0
-        Sxz: covariance of previous x and z, if no previous sample, set to 0
-        Sx: variance of previous x, if no previous sample, set to 0
-        n: number of previous samples
-        new_x: new incoming n-D numpy array x
-        new_z: new incoming 1-D numpy array z
-        """
-
-        new_x = x.reshape(-1,1)
-        x_avg = np.average(new_x)
-        z_avg = np.average(z)
-        Sxz=0
-        Sx=0
-        n=len(new_x)
-
-        x_star = x_avg*np.sqrt(n) / np.sqrt(n)
-        z_star = z_avg*np.sqrt(n) / np.sqrt(n)
-
-        new_Sx = Sx + np.sum((new_x-x_star)**2)
-        new_Sxz = Sxz + np.sum((new_x-x_star).reshape(-1) * (z-z_star).reshape(-1))
-
-        beta = new_Sxz/new_Sx
-        alpha = z_avg - beta * x_avg
-        return beta
 
 
     def quadratic_random_matrix(self, x, z, setting):
@@ -163,55 +134,83 @@ class Approximator(object):
         return copy.deepcopy(self.phi_quadratic)
 
 
-    def quadratic_random_matrix_fast(self, x, z, setting):
-        basis_size = setting['basis_size']
-        seed = 0 if 'seed' not in setting else setting['seed']
-        convex = setting['convex']
+    
 
+    def bregman(self, x, z, setting):
+        basis_size = setting['basis_size']
         data_size = len(z)
         x_size = len(x[:,0])
-
-        np.random.seed(seed)
-
-        # generate basis and z_bar
+        
         Q_basis = {}
-        b_basis = {}
-        # z_bar are values for each ((Q,b),z) pair
-        z_bar = np.zeros(shape=(data_size, basis_size))
+        for k in range(basis_size):
+            Q_basis[k] = np.random.rand(x_size,x_size)
+        def strong_convex(x, cnt):
+            # def sc_1(x):
+            #     x += 1e-6
+            #     return x.dot(x.T) + np.sum(-np.log(x))
+            # def sc_2(x):
+            #     x += 1e-6
+            #     return x.dot(x.T) + x.dot( np.log(x) )
+            # def sc_3(x):
+            #     # p_Q = np.random.rand(len(x),len(x))
+            #     p_Q = np.eye(len(x))
+            #     return x.dot( np.eye(len(x)) + p_Q.dot(p_Q) ).dot(x.T)
+            # st_conv = [ sc_1, sc_2, sc_3 ]
+            # return st_conv[cnt](x)
+            return x.dot( np.eye(x_size) + Q_basis[cnt].dot(Q_basis[cnt]) ).dot(x.T)
+
+        np.random.seed(0)
+        sets = setting['sets']
+        xk = {}
+        zk = {}
+        data2sets = {}
+        sets2data = {}
+        for k in range(sets):
+            xk[k] = []
+            zk[k] = []
+            # sets2data[k] = []
+
+        data_size = len(x[0,:])
         for i in range(data_size):
-            for k in range(basis_size):
-                Q_basis[k] = np.random.rand(x_size,x_size)
-                Q_basis[k] = Q_basis[k].dot(Q_basis[k]) if convex else -Q_basis[k].dot(Q_basis[k])
-                b_basis[k] = np.random.normal(0, 1, x_size)
+            k = np.random.choice(range(sets))
+            xk[k].append(x[:,i])
+            zk[k].append(z[i])
+            # data2sets[i] = k
+            # sets2data[k].append(i)
 
-                z_bar[i,k] = x[:,i].T.dot(Q_basis[k].dot(x[:,i])) + x[:,i].dot(b_basis[k])
+        beta = np.zeros(shape=(basis_size, sets))
+        # fit for each set
+        for k in range(sets):
+            zk_bar = np.zeros( shape=(basis_size, len(xk[k])) )
+            for i,_xk in enumerate(xk[k]):
+                zk_bar[:,i] = np.array( [ strong_convex(_xk,b_i) for b_i in range(basis_size) ] )
 
+            reg = linear_model.LinearRegression(fit_intercept=False)
+            # print( np.shape(zk_bar), len(zk[k]) )
+            reg.fit(zk_bar.T, np.array(zk[k]))
+            beta[:,k] = reg.coef_
+
+
+        # z_bar are values for each ((Q,b),z) pair
+        z_bar = np.zeros(shape=(data_size, sets))
+        for i in range(data_size):
+            for j in range(sets):
+                _beta = beta[:,j]
+                z_title = np.array( [ strong_convex(x[:,i],b_i) for b_i in range(basis_size) ] )
+                z_bar[i,j] = z_title.dot(_beta)
         
         # linearly fit (z_hat,z) without b, z_hat is a matrix
         reg = linear_model.LinearRegression(fit_intercept=False)
         reg.fit(z_bar, z)
         alpha = reg.coef_
-        # print(alpha)
+        
+        w = alpha.dot(beta.T)
+        def b_res(_x):
+            z_title = np.array( [ strong_convex(_x[0],i) for i in range(basis_size) ] )
+            return z_title.dot(w)
 
-        all_Q = np.array( [ Q_basis[i] for i in range(basis_size) ] ).T
-        all_b = np.array( [ b_basis[i] for i in range(basis_size) ] ).T
-        Q = all_Q.dot(alpha).reshape((x_size,x_size))
-        b = all_b.dot(alpha)
-        self.parameter['w'] = alpha
-        self.parameter['Q'] = Q
-        self.parameter['b'] = b
-        return copy.deepcopy(self.phi_quadratic)
-
-    def bergman(self, x, cnt):
-        def sc_1(x):
-            return x.dot(x.T) + np.sum(-np.log(x))
-        def sc_2(x):
-            return x.dot(x.T) + x.dot( np.log(x) )
-        def sc_3(x):
-            p_Q = np.random.rand(len(x),len(x))
-            return x.dot( np.eye(len(x)) + p_Q.dot(p_Q) ).dot(x.T)
-        st_conv = [ sc_1, sc_2, sc_3 ]
-        return st_conv[cnt](x)
+        self.parameter['w'] = w
+        return copy.deepcopy(b_res)
 
 
     def bootstrapping(self, x, z):
@@ -274,7 +273,7 @@ class Approximator(object):
             phi_hat = np.array( [cur[i](x) for i in range(sets)] )
             return alpha.dot( phi_hat )
 
-        return phi_bagging
+        return copy.deepcopy(phi_bagging)
 
 
     def sklearn_svm(self, x, z, setting):
@@ -360,25 +359,30 @@ def demo(X):
     z = np.zeros(len(x[0,:]))
 
     for i,_z in enumerate(z):
-        # z[i] = ( np.sum(x[:,i]) )**4
         z[i] = ( np.sum(x[:,i]) )**2
+        # z[i] = ( np.sum(x[:,i]) )**2
         # z[i] = x[:,i].dot(x[:,i])
         # z[i] = np.exp(np.sum(x[:,i]))
 
 
 
     setting = {
-        'basis_size': 100,
+        'basis_size': 10,
         'convex': True,
     }
     ap = Approximator()
     cur = ap.quadratic_random_matrix(x, z, setting)
-    # print(ap.parameter['Q'], ap.parameter['b'])
     ap.check(cur, x, z)
-    # cur = ap.quadratic_random_matrix_fast(x, z, setting)
-    # ap.check(cur, x, z)
-    # print(ap.parameter['Q'], ap.parameter['b'])
-    
+
+    setting = {
+        'basis_size': 10,
+        'sets': 10,
+    }
+    ap = Approximator()
+    cur = ap.bregman(x, z, setting)
+    ap.check(cur, x, z)
+
+
     # ap = Approximator()
     # setting = {'basis_size': 100}
     # cur = ap.RandomForest(x,z,setting)
