@@ -16,6 +16,7 @@ from scipy.linalg import null_space
 
 from sklearn.svm import SVR
 from sklearn import linear_model
+from sklearn import metrics
 from sklearn.neural_network import MLPRegressor
 # from sklearn import preprocessing
 from sklearn.decomposition import PCA
@@ -30,6 +31,7 @@ import json
 import pickle
 import time
 import copy 
+import timeit
 
 import logging
 # from imp import reload
@@ -70,9 +72,10 @@ class Approximator(object):
 
 
     def quadratic_random_matrix(self, x, z, setting):
-        basis_size = setting['basis_size']
+        basis_size = 10 if 'basis_size' not in setting else setting['basis_size']
         seed = 0 if 'seed' not in setting else setting['seed']
-        convex = setting['convex']
+        convex = False if 'convex' not in setting else setting['convex']
+        intercept = False if 'b' not in setting else setting['b']
 
         data_size = len(z)
         x_size = len(x[:,0])
@@ -99,12 +102,12 @@ class Approximator(object):
         b_hat = {}
 
         beta = np.zeros(shape=(data_size, basis_size))
+
         for i in range(data_size):
             # linearly fit (z_bar,z) without b
             reg = linear_model.LinearRegression(fit_intercept=False)
             # fit: |[beta]_i * [z_bar]_i - z_i| for each i
             reg.fit([z_bar[i,:].T], [z[i]])
-            # beta = reg.coef_
             beta[i,:] = reg.coef_
             
             # optimal Q,b for each i: Q_hat = \sum_j beta_j*Q_j
@@ -118,22 +121,74 @@ class Approximator(object):
                 z_hat[i,j] = x[:,i].T.dot(Q_hat[j].dot(x[:,i])) + x[:,i].dot(b_hat[j])
         
         # linearly fit (z_hat,z) without b, z_hat is a matrix
-        reg = linear_model.LinearRegression(fit_intercept=False)
+        reg = linear_model.LinearRegression(fit_intercept=intercept)
         # fit: || alpha * z_hat -z ||
         reg.fit(z_hat, z)
         alpha = reg.coef_
+        c = 0. if not intercept else reg.intercept_
 
         all_Q = np.array( [ Q_hat[i] for i in range(data_size) ] ).T
         all_b = np.array( [ b_hat[i] for i in range(data_size) ] ).T
         Q = all_Q.dot(alpha).reshape((x_size,x_size))
         b = all_b.dot(alpha)
+
         self.parameter['w'] = alpha.dot(beta)
         self.parameter['Q'] = Q
         self.parameter['b'] = b
+        self.parameter['c'] = c
+
+        def q_res(x):
+            _x = x[0]
+            return _x.T.dot(Q.dot(_x))+b.T.dot(_x)+c
         
-        return copy.deepcopy(self.phi_quadratic)
+        return copy.deepcopy(q_res)
 
+    def quadratic_random_matrix_fast(self, x, z, setting):
+        basis_size = 10 if 'basis_size' not in setting else setting['basis_size']
+        seed = 0 if 'seed' not in setting else setting['seed']
+        convex = False if 'convex' not in setting else setting['convex']
+        intercept = False if 'b' not in setting else setting['b']
 
+        data_size = len(z)
+        x_size = len(x[:,0])
+
+        np.random.seed(seed)
+
+        # generate basis and z_bar
+        Q_basis = {}
+        b_basis = {}
+        # z_bar are values for each ((Q,b),z) pair
+        z_bar = np.zeros(shape=(data_size, basis_size))
+        for i in range(data_size):
+            for k in range(basis_size):
+                _Q = np.random.rand(x_size,x_size)
+                Q_basis[k] = _Q.dot(_Q) if convex else -_Q.dot(_Q)
+                b_basis[k] = np.random.normal(0, 1, x_size)
+
+                z_bar[i,k] = x[:,i].T.dot(Q_basis[k].dot(x[:,i])) + x[:,i].dot(b_basis[k])
+
+        # linearly fit (z_hat,z) without b, z_hat is a matrix
+        reg = linear_model.LinearRegression(fit_intercept=intercept)
+        # fit: || alpha * z_hat -z ||
+        reg.fit(z_bar, z)
+        alpha = reg.coef_
+        c = 0. if not intercept else reg.intercept_
+
+        all_Q = np.array( [ Q_basis[i] for i in range(basis_size) ] ).T
+        all_b = np.array( [ b_basis[i] for i in range(basis_size) ] ).T
+        Q = all_Q.dot(alpha).reshape((x_size,x_size))
+        b = all_b.dot(alpha)
+
+        self.parameter['w'] = alpha
+        self.parameter['Q'] = Q
+        self.parameter['b'] = b
+        self.parameter['c'] = c
+
+        def q_res(x):
+            _x = x[0]
+            return _x.T.dot(Q.dot(_x))+b.T.dot(_x)+c
+        
+        return copy.deepcopy(q_res)
     
 
     def bregman(self, x, z, setting):
@@ -325,20 +380,20 @@ class Approximator(object):
             z_approx[i] = cur([x[:,i]])
 
         self.check_res = {
-            'mean': np.mean(z),
-            '2norm': np.linalg.norm(z_approx-z, 2),
-            'infnorm': np.linalg.norm(z_approx-z, np.inf),
-            'coe_var': np.linalg.norm(z_approx-z, 2)/np.mean(z),
+            'MSE': metrics.mean_squared_error(z, z_approx),
+            'MAE': metrics.mean_absolute_error(z, z_approx),
+            'ME': metrics.max_error(z, z_approx),
+            'R2': metrics.r2_score(z, z_approx),
             'z': z,
             'a_z': z_approx
         }
         
-        logging.info(f"mean:z {self.check_res['mean']}, mean:z\' {np.mean(z_approx)}, " \
-            f"2norm: {self.check_res['2norm']}, cov: {self.check_res['coe_var']}, infnorm: {self.check_res['infnorm']}")
+        logging.info(f"mean:z {np.mean(z)}, mean:z\' {np.mean(z_approx)}, " \
+            f"MSE: {self.check_res['MSE']}, MAE: {self.check_res['MAE']}, ME: {self.check_res['MaxE']}, R2: {self.check_res['R2']}")
 
         if visual:
             t = np.arange(0, len(z), 1)
-            plt.plot(t, z, 'ro', t, z_approx, 'b*', z-z_approx, 'y--')
+            plt.plot(t, z, 'ro', t, z_approx, 'b*', t, np.abs(z-z_approx), 'y--')
             plt.show()
 
 
@@ -347,40 +402,63 @@ class Approximator(object):
 
 def demo(X):
     logging.basicConfig(level=logging.INFO)
+
+    def test_fun(x):
+        z = np.zeros(len(x[0,:]))
+        for i in range(len(z)):
+            # z[i] = ( np.sum(x[:,i]) )**5
+            # z[i] = ( np.sum(x[:,i]) )**2
+            z[i] = x[:,i].dot(x[:,i])
+            # z[i] = np.exp(np.sum(x[:,i]))
+        return z
+
     np.random.seed(0)
     x = np.array(
         [
             np.random.uniform(0,10,X),
-            np.random.uniform(0,20,X),
-            np.random.uniform(0,30,X),
-            np.zeros(X),
+            np.random.uniform(0,10,X),
+            np.random.uniform(0,10,X),
+            np.random.uniform(0,10,X),
         ]
     )
-    z = np.zeros(len(x[0,:]))
+    z = test_fun(x)
 
-    for i,_z in enumerate(z):
-        z[i] = ( np.sum(x[:,i]) )**2
-        # z[i] = ( np.sum(x[:,i]) )**2
-        # z[i] = x[:,i].dot(x[:,i])
-        # z[i] = np.exp(np.sum(x[:,i]))
-
+    test_x = np.array(
+        [
+            np.random.uniform(0,10,X),
+            np.random.uniform(0,10,X),
+            np.random.uniform(0,10,X),
+            np.random.uniform(0,10,X),
+        ]
+    )
+    test_z = test_fun(test_x)
 
 
     setting = {
-        'basis_size': 10,
+        'basis_size': 100,
         'convex': True,
+        'b': False
     }
     ap = Approximator()
     cur = ap.quadratic_random_matrix(x, z, setting)
-    ap.check(cur, x, z)
+    ap.check(cur, test_x, test_z)
 
     setting = {
-        'basis_size': 10,
+        'basis_size': 100,
+        'convex': True,
+        'b': False
+    }
+    ap = Approximator()
+    cur = ap.quadratic_random_matrix_fast(x, z, setting)
+    ap.check(cur, test_x, test_z)
+
+    setting = {
+        'basis_size': 100,
         'sets': 10,
     }
     ap = Approximator()
     cur = ap.bregman(x, z, setting)
-    ap.check(cur, x, z)
+    ap.check(cur, test_x, test_z)
 
 
     # ap = Approximator()
