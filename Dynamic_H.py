@@ -228,14 +228,14 @@ def Fitting_single_process(args):
     method = settings[0]
     assert_set = {
         'rq': 2,
+        'br': 2
     }
     assert len(settings) == assert_set[method]
 
     setting_set = {
-        'rq': {'convex': True, 'basis_size': int(settings[1])}
+        'rq': {'convex': True, 'basis_size': int(settings[1])},
+        'br': {'basis': '-lnx', 'buckets': int(settings[1])}
     }
-    
-    # approx = {}
 
     for s in training_data:
         # print(training_data[s])
@@ -252,6 +252,7 @@ def Fitting_single_process(args):
         ap = Approximator()
         method_set = {
             'rq': ap.quadratic_random_matrix,
+            'br': ap.bregman_div,
         }
         cur = method_set[method]( x_train, z_train, setting_set[method] )
 
@@ -291,7 +292,7 @@ def main():
         'n': 4,
         'seed': 0
     }
-    Traning_Generators(1, info, True)
+    # Traning_Generators(1, info, True)
 
     with open('cache/training_data.pickle', 'rb') as pickle_file:
         training_data = pickle.load(pickle_file)
@@ -299,7 +300,7 @@ def main():
 
     process_pool = [
         {'d': copy.deepcopy(training_data), 'm': 'rq_10'},
-        # {'d': copy.deepcopy(training_data), 'm': 'rq_10000'}
+        {'d': copy.deepcopy(training_data), 'm': 'br_10'}
      ]
 
     with multiprocessing.Pool() as pool:

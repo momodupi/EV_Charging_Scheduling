@@ -74,8 +74,8 @@ class Approximator(object):
     def quadratic_random_matrix(self, x, z, setting):
         basis_size = 10 if 'basis_size' not in setting else setting['basis_size']
         seed = 0 if 'seed' not in setting else setting['seed']
-        convex = False if 'convex' not in setting else setting['convex']
-        intercept = False if 'b' not in setting else setting['b']
+        convex = True if 'convex' not in setting else setting['convex']
+        intercept = True if 'b' not in setting else setting['b']
 
         data_size = len(z)
         x_size = len(x[:,0])
@@ -199,46 +199,31 @@ class Approximator(object):
         Q_basis = {}
         for k in range(basis_size):
             Q_basis[k] = np.random.rand(x_size,x_size)
-        def strong_convex(x, cnt):
-            # def sc_1(x):
-            #     x += 1e-6
-            #     return x.dot(x.T) + np.sum(-np.log(x))
-            # def sc_2(x):
-            #     x += 1e-6
-            #     return x.dot(x.T) + x.dot( np.log(x) )
-            # def sc_3(x):
-            #     # p_Q = np.random.rand(len(x),len(x))
-            #     p_Q = np.eye(len(x))
-            #     return x.dot( np.eye(len(x)) + p_Q.dot(p_Q) ).dot(x.T)
-            # st_conv = [ sc_1, sc_2, sc_3 ]
-            # return st_conv[cnt](x)
+
+        def phi(x, cnt):
             return x.dot( np.eye(x_size) + Q_basis[cnt].dot(Q_basis[cnt]) ).dot(x.T)
 
         np.random.seed(0)
-        sets = setting['sets']
+        buckets = setting['buckets']
         xk = {}
         zk = {}
-        data2sets = {}
-        sets2data = {}
-        for k in range(sets):
+        for k in range(buckets):
             xk[k] = []
             zk[k] = []
             # sets2data[k] = []
 
-        data_size = len(x[0,:])
+        data_size = x[0,:].size
         for i in range(data_size):
-            k = np.random.choice(range(sets))
+            k = np.random.choice(range(buckets))
             xk[k].append(x[:,i])
             zk[k].append(z[i])
-            # data2sets[i] = k
-            # sets2data[k].append(i)
 
-        beta = np.zeros(shape=(basis_size, sets))
+        beta = np.zeros(shape=(basis_size, buckets))
         # fit for each set
-        for k in range(sets):
+        for k in range(buckets):
             zk_bar = np.zeros( shape=(basis_size, len(xk[k])) )
             for i,_xk in enumerate(xk[k]):
-                zk_bar[:,i] = np.array( [ strong_convex(_xk,b_i) for b_i in range(basis_size) ] )
+                zk_bar[:,i] = np.array( [ phi(_xk,b_i) for b_i in range(basis_size) ] )
 
             reg = linear_model.LinearRegression(fit_intercept=False)
             # print( np.shape(zk_bar), len(zk[k]) )
@@ -247,11 +232,11 @@ class Approximator(object):
 
 
         # z_bar are values for each ((Q,b),z) pair
-        z_bar = np.zeros(shape=(data_size, sets))
+        z_bar = np.zeros(shape=(data_size, buckets))
         for i in range(data_size):
-            for j in range(sets):
+            for j in range(buckets):
                 _beta = beta[:,j]
-                z_title = np.array( [ strong_convex(x[:,i],b_i) for b_i in range(basis_size) ] )
+                z_title = np.array( [ phi(x[:,i],b_i) for b_i in range(basis_size) ] )
                 z_bar[i,j] = z_title.dot(_beta)
         
         # linearly fit (z_hat,z) without b, z_hat is a matrix
@@ -261,10 +246,159 @@ class Approximator(object):
         
         w = alpha.dot(beta.T)
         def b_res(_x):
-            z_title = np.array( [ strong_convex(_x[0],i) for i in range(basis_size) ] )
+            z_title = np.array( [ phi(_x[0],i) for i in range(basis_size) ] )
             return z_title.dot(w)
 
         self.parameter['w'] = w
+        return copy.deepcopy(b_res)
+
+
+    def bregman_div(self, x, z, setting):
+        basis = setting['basis']
+        data_size = len(z)
+        x_size = len(x[:,0])
+        non_zero = 1e-5
+
+        buckets = setting['buckets']
+        xk = {}
+        zk = {}
+        sets2data = {}
+        for k in range(buckets):
+            xk[k] = []
+            zk[k] = []
+            sets2data[k] = []
+
+        data_size = x[0,:].size
+        for i in range(data_size):
+            k = np.random.choice(range(buckets))
+            xk[k].append(x[:,i])
+            zk[k].append(z[i])
+            sets2data[k].append(i)
+
+        def phi(_x):
+            if basis == 'xlnx':
+                _x += non_zero
+                # return _x.dot(_x.T) + np.sum( np.array( [_x_i*np.log(_x_i) for _x_i in _x] ) ) 
+                return _x.dot(_x.T) + _x.dot(np.log(_x))
+            elif basis == '-lnx':
+                _x += non_zero
+                # return _x.dot(_x.T) + np.sum( np.array( [-np.log(_x_i) for _x_i in _x] ) ) 
+                return _x.dot(_x.T) + np.sum( -np.log(_x) ) 
+            else:
+                return _x.dot(_x.T)
+
+        def phi_derivative(_x):
+            if basis == 'xlnx':
+                _x += non_zero
+                return 2*_x + np.log(_x)+1
+            elif basis == '-lnx':
+                _x += non_zero
+                return 2*_x + 1/_x
+            else:
+                return 2*_x
+
+        y_phi = np.zeros(data_size)
+        for i in range(data_size):
+            y_phi[i] = phi(x[:,i])
+
+        y_div = np.zeros(shape=(x_size, data_size))
+        for i in range(data_size):
+            y_div[:,i] = phi_derivative(x[:,i])
+
+        
+        def phi_div(_x, pos):
+            (j,k) = pos
+            # assert len(_x) == len(_y)
+            i = sets2data[k][j]
+            return 0 if np.array_equal(_x,xk[k][j]) else phi(_x) - y_phi[i] - (_x-y_phi[i]).dot(y_div[:,i])
+
+        beta = {}
+        # fit for each set
+        for k in range(buckets):
+            # beta[k] = np.zeros(len(xk[k]))
+            zk_bar = np.zeros( shape=(len(xk[k]), len(xk[k])) )
+            for i in range(len(xk[k])):
+                for j in range(len(xk[k])):
+                    zk_bar[i,j] = phi_div(xk[k][i], (j,k))
+
+            reg = linear_model.LinearRegression(fit_intercept=False)
+            # print( np.shape(zk_bar), len(zk[k]) )
+            reg.fit(zk_bar, np.array(zk[k]))
+            beta[k] = reg.coef_
+
+        def phi_beta(_x, k):
+            z_title = np.array( [ phi_div(_x, (i,k)) for i in range(len(xk[k])) ] )
+            return z_title.dot(beta[k])
+
+        # z_bar are values for each ((Q,b),z) pair
+        z_bar = np.zeros(shape=(data_size, buckets))
+        for i in range(data_size):
+            for j in range(buckets):
+                z_bar[i,j] = phi_beta(x[:,i], j)
+        
+        # linearly fit (z_hat,z) without b, z_hat is a matrix
+        reg = linear_model.LinearRegression(fit_intercept=False)
+        reg.fit(z_bar, z)
+        alpha = reg.coef_
+
+        def b_res(_x):
+            z_hat = np.array( [ phi_beta(_x[0],k) for k in range(buckets) ] )
+            return z_hat.dot(alpha)
+
+        self.parameter['w'] = {
+            'alpha': alpha,
+            'beta': beta
+        }
+        return copy.deepcopy(b_res)
+
+
+    def bregman_div_fast(self, x, z, setting):
+        basis = setting['basis']
+        data_size = len(z)
+        x_size = len(x[:,0])
+        non_zero = 1e-5
+
+        def phi(_x):
+            if basis == 'xlnx':
+                return _x.dot(_x) + _x.dot(np.log(_x+non_zero))
+            elif basis == '-lnx':
+                return _x.dot(_x) + np.sum( -np.log(_x+non_zero) ) 
+            else:
+                return _x.dot(_x)
+
+        def phi_derivative(_x):
+            if basis == 'xlnx':
+                return 2*_x + np.log(_x+non_zero)+1
+            elif basis == '-lnx':
+                return 2*_x + 1/(_x+non_zero)
+            else:
+                return 2*_x
+
+        y_phi = np.zeros(data_size)
+        for i in range(data_size):
+            y_phi[i] = phi(x[:,i])
+
+        y_div = np.zeros(shape=(x_size, data_size))
+        for i in range(data_size):
+            y_div[:,i] = phi_derivative(x[:,i])
+    
+        def phi_div(_x, i):
+            return 0 if np.array_equal(_x,x[:,i]) else phi(_x) - y_phi[i] - (_x-y_phi[i]).dot(y_div[:,i])
+
+        zk_bar = np.zeros( shape=(data_size, data_size) )
+        for i in range(data_size):
+            for j in range(data_size):
+                zk_bar[i,j] = phi_div(x[:,i], j)
+
+        reg = linear_model.LinearRegression(fit_intercept=False)
+        reg.fit(zk_bar, z)
+        alpha = reg.coef_
+
+        def b_res(_x):
+            z_hat = np.array( [ phi_div(_x[0], i) for i in range(data_size) ] )
+            return z_hat.dot(alpha)
+
+        self.parameter['w'] = alpha
         return copy.deepcopy(b_res)
 
 
@@ -290,31 +424,31 @@ class Approximator(object):
 
 
     def bagging(self, x, z, setting):
-        sets = setting['sets']
+        buckets = setting['buckets']
         xk = {}
         zk = {}
         data2sets = {}
         sets2data = {}
-        for k in range(sets):
+        for k in range(buckets):
             xk[k] = []
             zk[k] = []
             sets2data[k] = []
 
         data_size = len(x[0,:])
         for i in range(data_size):
-            k = np.random.choice(range(sets))
+            k = np.random.choice(range(buckets))
             xk[k].append(x[:,i])
             zk[k].append(z[i])
             data2sets[i] = k
             sets2data[k].append(i)
 
         cur = []
-        for k in range(sets):
+        for k in range(buckets):
             _x = np.array(xk[k]).T
             _z = np.array(zk[k])
             cur.append( copy.deepcopy( self.bootstrapping(_x, _z) ) )
 
-        z_hat = np.zeros(shape=(data_size, sets))
+        z_hat = np.zeros(shape=(data_size, buckets))
         for i in range(data_size):
             for j in range(data_size):
                 k = data2sets[j]
@@ -325,7 +459,7 @@ class Approximator(object):
         alpha = reg.coef_
 
         def phi_bagging(x):
-            phi_hat = np.array( [cur[i](x) for i in range(sets)] )
+            phi_hat = np.array( [cur[i](x) for i in range(buckets)] )
             return alpha.dot( phi_hat )
 
         return copy.deepcopy(phi_bagging)
@@ -389,7 +523,7 @@ class Approximator(object):
         }
         
         logging.info(f"mean:z {np.mean(z)}, mean:z\' {np.mean(z_approx)}, " \
-            f"MSE: {self.check_res['MSE']}, MAE: {self.check_res['MAE']}, ME: {self.check_res['MaxE']}, R2: {self.check_res['R2']}")
+            f"MSE: {self.check_res['MSE']}, MAE: {self.check_res['MAE']}, MaxE: {self.check_res['ME']}, R2: {self.check_res['R2']}")
 
         if visual:
             t = np.arange(0, len(z), 1)
@@ -406,9 +540,9 @@ def demo(X):
     def test_fun(x):
         z = np.zeros(len(x[0,:]))
         for i in range(len(z)):
-            # z[i] = ( np.sum(x[:,i]) )**5
-            # z[i] = ( np.sum(x[:,i]) )**2
-            z[i] = x[:,i].dot(x[:,i])
+            # z[i] = ( np.sum(x[:,i]) )**4
+            z[i] = ( np.sum(x[:,i]) )**2
+            # z[i] = x[:,i].dot(x[:,i])
             # z[i] = np.exp(np.sum(x[:,i]))
         return z
 
@@ -434,37 +568,40 @@ def demo(X):
     test_z = test_fun(test_x)
 
 
-    setting = {
-        'basis_size': 100,
-        'convex': True,
-        'b': False
-    }
-    ap = Approximator()
-    cur = ap.quadratic_random_matrix(x, z, setting)
-    ap.check(cur, test_x, test_z)
-
-    setting = {
-        'basis_size': 100,
-        'convex': True,
-        'b': False
-    }
-    ap = Approximator()
-    cur = ap.quadratic_random_matrix_fast(x, z, setting)
-    ap.check(cur, test_x, test_z)
-
-    setting = {
-        'basis_size': 100,
-        'sets': 10,
-    }
-    ap = Approximator()
-    cur = ap.bregman(x, z, setting)
-    ap.check(cur, test_x, test_z)
-
-
+    # setting = {
+    #     'basis_size': 100,
+    #     'convex': True,
+    #     'b': False
+    # }
     # ap = Approximator()
-    # setting = {'basis_size': 100}
-    # cur = ap.RandomForest(x,z,setting)
-    # ap.check(cur, x, z)
+    # cur = ap.quadratic_random_matrix(x, z, setting)
+    # ap.check(cur, test_x, test_z)
+
+    # setting = {
+    #     'basis_size': 100,
+    #     'convex': True,
+    #     'b': False
+    # }
+    # ap = Approximator()
+    # cur = ap.quadratic_random_matrix_fast(x, z, setting)
+    # ap.check(cur, test_x, test_z)
+
+    # setting = {
+    #     'basis_size': 100,
+    #     'buckets': 10,
+    # }
+    # ap = Approximator()
+    # cur = ap.bregman(x, z, setting)
+    # ap.check(cur, test_x, test_z)
+
+
+    setting = {
+        'basis': 'xlnx',
+        'buckets': 10
+    }
+    ap = Approximator()
+    cur = ap.bregman_div(x, z, setting)
+    ap.check(cur, test_x, test_z)
     
     # x_prj = ap.PCA(x)
     # print(x[:,0],x_prj[:,0])
@@ -482,7 +619,7 @@ def demo(X):
     # cur = ap.sklearn_svm(x,z, setting=setting)
     
     # setting = {
-    #     'sets': 10
+    #     'buckets': 10
     # }
     # cur = ap.bagging(x,z, setting)
 
@@ -508,4 +645,4 @@ def demo(X):
 
 
 if __name__ == "__main__":
-    demo(2000)
+    demo(200)
