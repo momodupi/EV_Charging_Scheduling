@@ -191,7 +191,7 @@ class Approximator(object):
         return copy.deepcopy(q_res)
     
 
-    def bregman(self, x, z, setting):
+    def strongly_convex_random_matrix(self, x, z, setting):
         basis_size = setting['basis_size']
         data_size = len(z)
         x_size = len(x[:,0])
@@ -568,14 +568,14 @@ def demo(X):
     test_z = test_fun(test_x)
 
 
-    # setting = {
-    #     'basis_size': 100,
-    #     'convex': True,
-    #     'b': False
-    # }
-    # ap = Approximator()
-    # cur = ap.quadratic_random_matrix(x, z, setting)
-    # ap.check(cur, test_x, test_z)
+    setting = {
+        'basis_size': 100,
+        'convex': True,
+        'b': True
+    }
+    ap = Approximator()
+    cur = ap.quadratic_random_matrix(x, z, setting)
+    ap.check(cur, test_x, test_z)
 
     # setting = {
     #     'basis_size': 100,
@@ -586,22 +586,22 @@ def demo(X):
     # cur = ap.quadratic_random_matrix_fast(x, z, setting)
     # ap.check(cur, test_x, test_z)
 
-    # setting = {
-    #     'basis_size': 100,
-    #     'buckets': 10,
-    # }
-    # ap = Approximator()
-    # cur = ap.bregman(x, z, setting)
-    # ap.check(cur, test_x, test_z)
-
-
     setting = {
-        'basis': 'xlnx',
-        'buckets': 10
+        'basis_size': 100,
+        'buckets': 10,
     }
     ap = Approximator()
-    cur = ap.bregman_div(x, z, setting)
+    cur = ap.strongly_convex_random_matrix(x, z, setting)
     ap.check(cur, test_x, test_z)
+
+
+    # setting = {
+    #     'basis': 'xlnx',
+    #     'buckets': 10
+    # }
+    # ap = Approximator()
+    # cur = ap.bregman_div(x, z, setting)
+    # ap.check(cur, test_x, test_z)
     
     # x_prj = ap.PCA(x)
     # print(x[:,0],x_prj[:,0])
@@ -645,4 +645,4 @@ def demo(X):
 
 
 if __name__ == "__main__":
-    demo(200)
+    demo(2000)

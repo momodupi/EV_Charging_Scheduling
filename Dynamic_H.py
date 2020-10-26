@@ -226,16 +226,6 @@ def Fitting_single_process(args):
     settings = args['m'].split('_')
 
     method = settings[0]
-    assert_set = {
-        'rq': 2,
-        'br': 2
-    }
-    assert len(settings) == assert_set[method]
-
-    setting_set = {
-        'rq': {'convex': True, 'basis_size': int(settings[1])},
-        'br': {'basis': '-lnx', 'buckets': int(settings[1])}
-    }
 
     for s in training_data:
         # print(training_data[s])
@@ -250,12 +240,26 @@ def Fitting_single_process(args):
             z_train[k] = data_k[1]
 
         ap = Approximator()
-        method_set = {
-            'rq': ap.quadratic_random_matrix,
-            'br': ap.bregman_div,
-        }
-        cur = method_set[method]( x_train, z_train, setting_set[method] )
+        if method == 'rq':
+            setting = {'convex': True, 'basis_size': int(settings[1])}
+            cur = ap.quadratic_random_matrix( x_train, z_train, setting )
+        elif method == 'br':
+            setting = {'basis': '-lnx', 'buckets': int(settings[1])}
+            cur = ap.bregman_div( x_train, z_train, setting )
+        elif method == 'scr':
+            setting = {'basis_size': int(settings[1]), 'buckets': int(settings[2])}
+            cur = ap.strongly_convex_random_matrix( x_train, z_train, setting )
+        else:
+            setting = {'convex': True, 'basis_size': int(settings[1])}
+            cur = ap.quadratic_random_matrix( x_train, z_train, setting )
 
+        # method_set = {
+        #     'rq': ap.quadratic_random_matrix,
+        #     'br': ap.bregman_div,
+        #     'scr': ap.strongly_convex_random_matrix
+        # }
+        # cur = method_set[method]( x_train, z_train, setting_set[method] )
+        # cur = method_set[method]( x_train, z_train, setting )
 
         # print(f'training: s={s}')
         ap.check(cur, x_train, z_train)
@@ -300,7 +304,8 @@ def main():
 
     process_pool = [
         {'d': copy.deepcopy(training_data), 'm': 'rq_10'},
-        {'d': copy.deepcopy(training_data), 'm': 'br_10'}
+        {'d': copy.deepcopy(training_data), 'm': 'br_1'},
+        {'d': copy.deepcopy(training_data), 'm': 'scr_10_1'}
      ]
 
     with multiprocessing.Pool() as pool:
