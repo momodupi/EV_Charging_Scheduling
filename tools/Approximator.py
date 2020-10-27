@@ -293,7 +293,7 @@ class Approximator(object):
                 return 2*_x + np.log(_x)+1
             elif basis == '-lnx':
                 _x += non_zero
-                return 2*_x + 1/_x
+                return 2*_x - 1/_x
             else:
                 return 2*_x
 
