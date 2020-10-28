@@ -244,11 +244,8 @@ def Fitting_single_process(args):
             setting = {'convex': True, 'basis_size': int(settings[1])}
             cur = ap.quadratic_random_matrix( x_train, z_train, setting )
         elif method == 'br':
-            setting = {'basis': '-lnx', 'buckets': int(settings[1])}
+            setting = {'basis': settings[1], 'buckets': int(settings[2])}
             cur = ap.bregman_div( x_train, z_train, setting )
-        elif method == 'scr':
-            setting = {'basis_size': int(settings[1]), 'buckets': int(settings[2])}
-            cur = ap.strongly_convex_random_matrix( x_train, z_train, setting )
         else:
             setting = {'convex': True, 'basis_size': int(settings[1])}
             cur = ap.quadratic_random_matrix( x_train, z_train, setting )
