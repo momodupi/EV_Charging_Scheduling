@@ -19,7 +19,7 @@ from sklearn import linear_model
 from sklearn import metrics
 from sklearn.neural_network import MLPRegressor
 # from sklearn import preprocessing
-from sklearn.decomposition import PCA
+# from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestRegressor 
 
 # import torch
@@ -36,10 +36,12 @@ import timeit
 import logging
 # from imp import reload
 
+from Squeeze import Squeeze
+
 
 class Approximator(object):
-    def __init__(self, method='quadratic'):
-        self.method = method
+    def __init__(self):
+        self.method = 'quadratic'
         
         self.kernel = {
             'quadratic': self.phi_quadratic,
@@ -536,13 +538,6 @@ class Approximator(object):
         clf.fit(x.T, z)
         return clf.predict
 
-
-    def PCA(self, x):
-        # print(x.shape)
-        pca = PCA(n_components=3)
-        return pca.fit_transform(x.T).T
-
-
     def RandomForest(self, x, z, setting):
         n_estimators = setting['basis_size']
         clf = RandomForestRegressor (n_estimators=n_estimators)
@@ -590,27 +585,15 @@ def demo(X):
         return z
 
     np.random.seed(0)
-    x = np.array(
-        [
-            np.random.uniform(0,10,X),
-            np.random.uniform(0,10,X),
-            np.random.uniform(0,10,X),
-            np.random.uniform(0,10,X),
-        ]
-    )
+    x = np.random.rand(10,X)
+    x[9,:] = 0
     z = test_fun(x)
 
-    test_x = np.array(
-        [
-            np.random.uniform(0,10,X),
-            np.random.uniform(0,10,X),
-            np.random.uniform(0,10,X),
-            np.random.uniform(0,10,X),
-        ]
-    )
+    test_x = np.random.rand(10,X)
+    # test_x[9,:] = 0
     test_z = test_fun(test_x)
 
-
+    
     # setting = {
     #     'basis_size': 100,
     #     'convex': True,
@@ -620,31 +603,26 @@ def demo(X):
     # cur = ap.quadratic_random_matrix(x, z, setting)
     # ap.check(cur, test_x, test_z)
 
-    # setting = {
-    #     'basis_size': 100,
-    #     'convex': True,
-    #     'b': False
-    # }
-    # ap = Approximator()
-    # cur = ap.quadratic_random_matrix_fast(x, z, setting)
-    # ap.check(cur, test_x, test_z)
-
-    # setting = {
-    #     'basis_size': 100,
-    #     'buckets': 10,
-    # }
-    # ap = Approximator()
-    # cur = ap.strongly_convex_random_matrix(x, z, setting)
-    # ap.check(cur, test_x, test_z)
-
-
     setting = {
-        'basis': 'xlnx',
-        'buckets': 0
+        'basis_size': 100,
+        'convex': True,
+        'b': True
     }
     ap = Approximator()
-    cur = ap.bregman_div(x, z, setting)
-    ap.check(cur, test_x, test_z, True)
+    cur = ap.quadratic_random_matrix_fast(x, z, setting)
+    
+    # test_x = sq.PCA(test_x,9)
+    # test_x = test_x[0:8,:]
+    ap.check(cur, test_x, test_z)
+
+
+    # setting = {
+    #     'basis': 'xlnx',
+    #     'buckets': 100
+    # }
+    # ap = Approximator()
+    # cur = ap.bregman_div(x, z, setting)
+    # ap.check(cur, test_x, test_z, True)
     
     # x_prj = ap.PCA(x)
     # print(x[:,0],x_prj[:,0])

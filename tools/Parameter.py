@@ -221,7 +221,7 @@ class Parameter(object):
                     / time flexibility discount
             '''
             # return (1+price_turbulance(s)) * base_price*m / n
-            return base_price*m / (1+n/10)
+            return base_price* (1+m/10) / (1+n/10)
 
         # set all v,c,z
         for s in range(self.time_horizon):
