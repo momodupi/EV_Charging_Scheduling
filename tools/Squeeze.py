@@ -58,11 +58,13 @@ class Squeeze(object):
             self.res['dense'] = sel.fit(x.T)
             x_dense = sel.transform(x.T)
             # print(len(x_dense[0,:]))
-
-            pca = PCA(n_components=min( len(x_dense[0,:]), len(x_dense[:,0]), setting['nc'] ))
-            pca.fit(x_dense)
-            self.res['pca'] = pca
-            res = pca.transform(x_dense)
+            if setting['nc'] <= 0:
+                res = x_dense
+            else:
+                pca = PCA(n_components=min( len(x_dense[0,:]), len(x_dense[:,0]), setting['nc'] ))
+                pca.fit(x_dense)
+                self.res['pca'] = pca
+                res = pca.transform(x_dense)
 
         return res.T
 

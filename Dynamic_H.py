@@ -317,27 +317,37 @@ def main():
     }
     # Traning_Generators(2, info, True)
 
-    with open('cache/training_data.pickle', 'rb') as pickle_file:
+    # with open('cache/training_data.pickle', 'rb') as pickle_file:
+    #     training_data = pickle.load(pickle_file)
+
+    # with open('cache/training_data.pickle', 'rb') as pickle_file:
+    #     testing_data = pickle.load(pickle_file)
+
+    with open('cache/training_data_1000.pickle', 'rb') as pickle_file:
         training_data = pickle.load(pickle_file)
 
-    with open('cache/training_data.pickle', 'rb') as pickle_file:
+    with open('cache/testing_data_1000.pickle', 'rb') as pickle_file:
         testing_data = pickle.load(pickle_file)
 
+
+    process_pool = [
+        {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_100'}
+    ]
 
     # process_pool = [
     #     {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_10'},
     #     {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_10'},
     #     {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_10'}
     #  ]
-    process_pool = []
-    for i in range(1,50,1):
-        process_pool.append(
-            {
-                'd': copy.deepcopy(training_data), 
-                'e': copy.deepcopy(testing_data), 
-                'm': f'rq_10_p_{i+1}'
-            }
-        )
+    # process_pool = []
+    # for i in range(1,50,1):
+    #     process_pool.append(
+    #         {
+    #             'd': copy.deepcopy(training_data), 
+    #             'e': copy.deepcopy(testing_data), 
+    #             'm': f'rq_10_p_{i+1}'
+    #         }
+    #     )
 
     with multiprocessing.Pool() as pool:
         pool.map( Fitting_single_process, process_pool )
