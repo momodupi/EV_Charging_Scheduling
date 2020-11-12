@@ -223,6 +223,7 @@ def Traning_Generators(data_size=0, info=None, mp=False):
 
 def Fitting_single_process(args):
     training_data = args['d']
+    testing_data = args['e']
     settings = args['m'].split('_')
 
     method = settings[0]
@@ -234,10 +235,28 @@ def Fitting_single_process(args):
 
         x_train = np.zeros(shape=(x_size, data_size))
         z_train = np.zeros(data_size)
+
+        x_test = np.zeros(shape=(x_size, data_size))
+        z_test = np.zeros(data_size)
         
         for k,data_k in enumerate(training_data[s]):
             x_train[:,k] = data_k[0]
             z_train[k] = data_k[1]
+
+            x_test[:,k] = testing_data[s][k][0]
+            z_test[k] = testing_data[s][k][1]
+
+        if 'p' in settings:
+            sq = Squeeze()
+            pca_setting = {
+                'nc': int(settings[settings.index('p')+1]),
+                'fit': False,
+                'var_thrsd': 0.1
+            }
+            x_train = sq.PCA(x_train, pca_setting)
+
+            pca_setting['fit'] = True
+            x_test= sq.PCA(x_test, pca_setting)
 
         ap = Approximator()
         if method == 'rq':
@@ -259,7 +278,10 @@ def Fitting_single_process(args):
         # cur = method_set[method]( x_train, z_train, setting )
 
         # print(f'training: s={s}')
-        ap.check(cur, x_train, z_train)
+        # ap.check(cur, x_train, z_train)
+
+        ap.check(cur, x_test, z_test)
+        # print(int(settings[settings.index('p')+1]), ap.runtime)
         ap_s = copy.deepcopy(ap)
 
         with open(f'cache/approx_{args["m"]}_{s}.pickle', 'wb') as pickle_file:
@@ -293,17 +315,29 @@ def main():
         'n': 4,
         'seed': 0
     }
-    # Traning_Generators(1, info, True)
+    # Traning_Generators(2, info, True)
 
     with open('cache/training_data.pickle', 'rb') as pickle_file:
         training_data = pickle.load(pickle_file)
 
+    with open('cache/training_data.pickle', 'rb') as pickle_file:
+        testing_data = pickle.load(pickle_file)
 
-    process_pool = [
-        {'d': copy.deepcopy(training_data), 'm': 'rq_10'},
-        {'d': copy.deepcopy(training_data), 'm': 'br_1'},
-        {'d': copy.deepcopy(training_data), 'm': 'scr_10_1'}
-     ]
+
+    # process_pool = [
+    #     {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_10'},
+    #     {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_10'},
+    #     {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_10'}
+    #  ]
+    process_pool = []
+    for i in range(1,50,1):
+        process_pool.append(
+            {
+                'd': copy.deepcopy(training_data), 
+                'e': copy.deepcopy(testing_data), 
+                'm': f'rq_10_p_{i+1}'
+            }
+        )
 
     with multiprocessing.Pool() as pool:
         pool.map( Fitting_single_process, process_pool )

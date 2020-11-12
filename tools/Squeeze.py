@@ -3,6 +3,7 @@ import pandas as pd
 
 from numpy.linalg import matrix_rank
 from sklearn.decomposition import PCA
+from sklearn.feature_selection import VarianceThreshold
 
 import time
 
@@ -45,9 +46,24 @@ class Squeeze(object):
     #     print(f'squeeze time: {time.time()-s_time} sec')
     #     return prj_A_eq, prj_b_eq
 
-    def PCA(self, x, nc=1):
-        pca = PCA(n_components=nc)
-        res = pca.fit_transform(x.T)
+    def PCA(self, x, setting):
+
+        if setting['fit'] and {'dense', 'pca'} <= self.res.keys():
+            x_dense = self.res['dense'].transform(x.T)
+            res = self.res['pca'].transform(x_dense)
+        else:
+            # var(x)=p(1-p)
+            sel = VarianceThreshold()
+            # print(x.T)
+            self.res['dense'] = sel.fit(x.T)
+            x_dense = sel.transform(x.T)
+            # print(len(x_dense[0,:]))
+
+            pca = PCA(n_components=min( len(x_dense[0,:]), len(x_dense[:,0]), setting['nc'] ))
+            pca.fit(x_dense)
+            self.res['pca'] = pca
+            res = pca.transform(x_dense)
+
         return res.T
 
     # def Random_Projection(self, k, method):

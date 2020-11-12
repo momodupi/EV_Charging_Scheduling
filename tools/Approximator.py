@@ -36,7 +36,7 @@ import timeit
 import logging
 # from imp import reload
 
-from Squeeze import Squeeze
+
 
 
 class Approximator(object):
@@ -52,7 +52,7 @@ class Approximator(object):
         }
 
         self.parameter = {}
-
+        self.runtime = 0
         # reload(logging)
         # logging.basicConfig(level=logging.INFO, filename='ap_result.log')
 
@@ -74,6 +74,8 @@ class Approximator(object):
 
 
     def quadratic_random_matrix(self, x, z, setting):
+        s_time = time.time()
+
         basis_size = 10 if 'basis_size' not in setting else setting['basis_size']
         seed = 0 if 'seed' not in setting else setting['seed']
         convex = True if 'convex' not in setting else setting['convex']
@@ -143,9 +145,12 @@ class Approximator(object):
             _x = x[0]
             return _x.T.dot(Q.dot(_x))+b.T.dot(_x)+c
         
+        self.runtime = time.time()-s_time
         return copy.deepcopy(q_res)
 
     def quadratic_random_matrix_fast(self, x, z, setting):
+        s_time = time.time()
+
         basis_size = 10 if 'basis_size' not in setting else setting['basis_size']
         seed = 0 if 'seed' not in setting else setting['seed']
         convex = False if 'convex' not in setting else setting['convex']
@@ -190,6 +195,7 @@ class Approximator(object):
             _x = x[0]
             return _x.T.dot(Q.dot(_x))+b.T.dot(_x)+c
         
+        self.runtime = time.time()-s_time
         return copy.deepcopy(q_res)
     
 
@@ -256,6 +262,8 @@ class Approximator(object):
 
 
     def bregman_div(self, x, z, setting):
+        s_time = time.time()
+
         basis = setting['basis']
         data_size = len(z)
         x_size = len(x[:,0])
@@ -353,6 +361,8 @@ class Approximator(object):
                 'alpha': alpha,
                 'beta': beta
             }
+
+            self.runtime = time.time()-s_time
             return copy.deepcopy(b_res)
 
         else:
@@ -394,6 +404,8 @@ class Approximator(object):
                 'alpha': alpha,
                 'beta': beta
             }
+
+            self.runtime = time.time()-s_time
             return copy.deepcopy(b_res)
 
 
@@ -448,6 +460,8 @@ class Approximator(object):
 
 
     def bootstrapping(self, x, z):
+        s_time = time.time()
+
         x_size = len(x[:,0])
         p_0 = np.zeros(shape=((x_size+1)*x_size,1))
         # print(p_0)
@@ -465,10 +479,14 @@ class Approximator(object):
         
         result = minimize(phi_dist_boosts, p_0, method='CG')
         self.theta[self.method](result.x, x_size)
+
+        self.runtime = time.time()-s_time
         return self.kernel[self.method]
 
 
     def bagging(self, x, z, setting):
+        s_time = time.time()
+
         buckets = setting['buckets']
         xk = {}
         zk = {}
@@ -507,6 +525,7 @@ class Approximator(object):
             phi_hat = np.array( [cur[i](x) for i in range(buckets)] )
             return alpha.dot( phi_hat )
 
+        self.runtime = time.time()-s_time
         return copy.deepcopy(phi_bagging)
 
 
@@ -584,13 +603,25 @@ def demo(X):
             # z[i] = np.exp(np.sum(x[:,i]))
         return z
 
+    from Squeeze import Squeeze
+    sq = Squeeze()
+
+    pca_setting = {
+        'nc': 6,
+        'fit': False,
+        'var_thrsd': 0.1
+    }
+
     np.random.seed(0)
     x = np.random.rand(10,X)
-    x[9,:] = 0
+    x[4:9,:] = 0
+    x = sq.PCA(x, pca_setting)
     z = test_fun(x)
 
     test_x = np.random.rand(10,X)
-    # test_x[9,:] = 0
+    test_x[4:9,:] = 0
+    pca_setting['fit'] = True
+    test_x= sq.PCA(test_x, pca_setting)
     test_z = test_fun(test_x)
 
     
@@ -604,17 +635,14 @@ def demo(X):
     # ap.check(cur, test_x, test_z)
 
     setting = {
-        'basis_size': 100,
+        'basis_size': 10,
         'convex': True,
         'b': True
     }
     ap = Approximator()
     cur = ap.quadratic_random_matrix_fast(x, z, setting)
-    
-    # test_x = sq.PCA(test_x,9)
-    # test_x = test_x[0:8,:]
-    ap.check(cur, test_x, test_z)
 
+    ap.check(cur, test_x, test_z, visual=True)
 
     # setting = {
     #     'basis': 'xlnx',
@@ -657,12 +685,6 @@ def demo(X):
 
     # cur = ap.sklearn_neural(x,z, setting=setting)
 
-    # boosts_err = 0
-    # for i in range(len(z)):
-    #     # boosts_err += ( regr.predict( [x[:,i]] ) - z[i])**2
-    #     # boosts_err += ( ap.kernel[ap.method]( _x, r) - z[i])**2
-    #     boosts_err += ( cur([x[:,i]]) - z[i])**2
-    # print(boosts_err)
 
 
 if __name__ == "__main__":
