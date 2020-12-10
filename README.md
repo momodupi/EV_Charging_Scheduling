@@ -148,15 +148,15 @@ the $y$ will be saved to `results/y_static.xlsx` (or `results/y_dynamic.xlsx`), 
 will be saved to `results/e_static.csv` (or `results/e_dynamic.csv`).
 
 
+## Approximator
+...
+
+
 ## Squeeze
 ...
 
 
 ## Low Level Scheduling
-...
-
-
-## Approximator
 ...
 
 
