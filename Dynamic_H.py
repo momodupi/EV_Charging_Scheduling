@@ -67,7 +67,8 @@ def CVXOPT_LP(s, pa, ye):
     
     return np.squeeze(np.asarray(result['x']))
 
-
+def CVXOPT_OPT(s, pa, ye):
+    return 0
 
 
 def Dynamic_H():
@@ -78,6 +79,13 @@ def Dynamic_H():
     with open('cache/result_static.pickle', 'rb') as pickle_file:
         result_static = pickle.load(pickle_file) 
 
+    with open('cache/approx_rq_100.pickle', 'rb') as pickle_file:
+        ap = pickle.load(pickle_file) 
+
+    Q = ap.parameter['Q']
+    b = ap.parameter['b']
+    c = ap.parameter['c']
+
     with open('cache/cache_static.pickle', 'rb') as pickle_file:
         result_cache = pickle.load(pickle_file) 
 
@@ -86,17 +94,20 @@ def Dynamic_H():
     ye = np.ones(len(pa.c_lin))*(-1)
     
     s_time = time.time()
-    for _s in range(1,pa.time_horizon+1):
-        s = pa.time_horizon-_s
+    # for _s in range(1,pa.time_horizon+1):
+    #     s = pa.time_horizon-_s
 
+    #     result = CVXOPT_LP(s, pa, result_static)
+    #     # print(result, s)
+
+    #     for i,tmn in enumerate(pa.cnt2tmn_s[s]):
+    #         t, mi, ni = tmn
+    #         # print(s,t,mi,ni)
+    #         if s in pa.stmn2cnt and t in pa.stmn2cnt[s] and mi in pa.stmn2cnt[s][t] and ni in pa.stmn2cnt[s][t][mi]:
+    #             ye[ pa.stmn2cnt[s][t][mi][ni] ] = float(result[i])
+
+    for s in range(1,pa.time_horizon+1):
         result = CVXOPT_LP(s, pa, result_static)
-        # print(result, s)
-
-        for i,tmn in enumerate(pa.cnt2tmn_s[s]):
-            t, mi, ni = tmn
-            # print(s,t,mi,ni)
-            if s in pa.stmn2cnt and t in pa.stmn2cnt[s] and mi in pa.stmn2cnt[s][t] and ni in pa.stmn2cnt[s][t][mi]:
-                ye[ pa.stmn2cnt[s][t][mi][ni] ] = float(result[i])
 
     dur = time.time()-s_time
 
@@ -304,7 +315,7 @@ def Fitting_single_process(args):
 
 def main():
     logging.basicConfig(level=logging.INFO, filename='ap_res.log')
-    # Dynamic_H()
+    Dynamic_H()
     info = {
         'time_horizon': 48,
         'unit': 'hour',
@@ -323,34 +334,34 @@ def main():
     # with open('cache/training_data.pickle', 'rb') as pickle_file:
     #     testing_data = pickle.load(pickle_file)
 
-    with open('cache/training_data_1000.pickle', 'rb') as pickle_file:
-        training_data = pickle.load(pickle_file)
+    # with open('cache/training_data_1000.pickle', 'rb') as pickle_file:
+    #     training_data = pickle.load(pickle_file)
 
-    with open('cache/testing_data_1000.pickle', 'rb') as pickle_file:
-        testing_data = pickle.load(pickle_file)
+    # with open('cache/testing_data_1000.pickle', 'rb') as pickle_file:
+    #     testing_data = pickle.load(pickle_file)
 
-
-    process_pool = [
-        {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_100'}
-    ]
 
     # process_pool = [
-    #     {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_10'},
-    #     {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_10'},
-    #     {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_10'}
-    #  ]
-    # process_pool = []
-    # for i in range(1,50,1):
-    #     process_pool.append(
-    #         {
-    #             'd': copy.deepcopy(training_data), 
-    #             'e': copy.deepcopy(testing_data), 
-    #             'm': f'rq_10_p_{i+1}'
-    #         }
-    #     )
+    #     {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_100'}
+    # ]
 
-    with multiprocessing.Pool() as pool:
-        pool.map( Fitting_single_process, process_pool )
+    # # process_pool = [
+    # #     {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_10'},
+    # #     {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_10'},
+    # #     {'d': copy.deepcopy(training_data), 'e': copy.deepcopy(testing_data), 'm': 'rq_10'}
+    # #  ]
+    # # process_pool = []
+    # # for i in range(1,50,1):
+    # #     process_pool.append(
+    # #         {
+    # #             'd': copy.deepcopy(training_data), 
+    # #             'e': copy.deepcopy(testing_data), 
+    # #             'm': f'rq_10_p_{i+1}'
+    # #         }
+    # #     )
+
+    # with multiprocessing.Pool() as pool:
+    #     pool.map( Fitting_single_process, process_pool )
 
     # with open('cache/training_data_1000.pickle', 'rb') as pickle_file:
     #     training_data = pickle.load(pickle_file)

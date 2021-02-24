@@ -491,6 +491,31 @@ class Parameter(object):
         return p_dic
 
 
+    # def get_state(self, ye, s):
+    #     if self.z == None:
+    #         self.z = self.get_z(ye)
+        
+    #     if s not in self.cnt2tmn_s:
+    #         self.cnt2tmn_s[s] = []
+        
+    #     # x = []
+    #     # z = []
+    #     x = np.zeros(shape=(self.menu_n_size*self.menu_m_size*self.menu_n_size,2))
+    #     cnt = 0
+    #     for t in range(s-self.menu_n_size+1, s+1):
+    #         for mi,m in enumerate(self.menu['m']):
+    #             for ni,n in enumerate(self.menu['n']):
+    #                 x_t = (self.w[t][mi][ni],self.z[s][t][mi][ni]) if t>=0 else (0,0)
+    #                 # x.append( x_t )
+    #                 x[cnt,0] = x_t[0]
+    #                 x[cnt,1] = x_t[1]
+    #                 cnt += 1
+    #                 self.cnt2tmn_s[s].append((t,mi,ni))
+    #                 # print(x_t)
+    #     # print(x)
+    #     # print(self.cnt2tmn_s[s])
+    #     return x.flatten().T
+
     def get_state(self, ye, s):
         if self.z == None:
             self.z = self.get_z(ye)
@@ -498,13 +523,22 @@ class Parameter(object):
         if s not in self.cnt2tmn_s:
             self.cnt2tmn_s[s] = []
         
-        # x = []
-        # z = []
+        y = ye['y']
+        e = ye['e']
         x = np.zeros(shape=(self.menu_n_size*self.menu_m_size*self.menu_n_size,2))
         cnt = 0
         for t in range(s-self.menu_n_size+1, s+1):
             for mi,m in enumerate(self.menu['m']):
                 for ni,n in enumerate(self.menu['n']):
+                    
+                    if s == t-1:
+                        self.z[s][t][mi][ni] = float(m*self.w[t][mi][ni])
+                    elif s>=t and s<=t+n-1:
+                        self.z[s][t][mi][ni] = self.z[s-1][t][mi][ni] - y[s-1][t][mi][ni]
+                    else:
+                        self.z[s][t][mi][ni] = 0
+
+
                     x_t = (self.w[t][mi][ni],self.z[s][t][mi][ni]) if t>=0 else (0,0)
                     # x.append( x_t )
                     x[cnt,0] = x_t[0]
@@ -532,3 +566,29 @@ class Parameter(object):
 
             self.lags[s][t][mi][ni] = float(mu_ie[i])
             self.lags[s]['e'] = float(mu_ie[-1])
+            
+
+    # def update_state(self, s, ye, x):
+    #     if s == 0:
+    #         z = {}
+    #         for s in range(self.time_horizon):
+    #             z[s] = {}
+    #             for t in range(self.time_horizon):
+    #                 # print(t)
+    #                 z[s][t] = {}
+    #                 for mi,m in enumerate(self.menu['m']):
+    #                     z[s][t][mi] = {}
+
+    #     def update_z(s, ye):
+    #         y = ye['y']
+    #         e = ye['e']
+    #         for mi,m in enumerate(self.menu['m']):
+    #             for ni,n in enumerate(self.menu['n']):
+    #                 for t in range(self.time_horizon):
+    #                     if s == t-1:
+    #                         self.z[s][t][mi][ni] = float(m*self.w[t][mi][ni])
+    #                     elif s>=t and s<=t+n-1:
+    #                         self.z[s][t][mi][ni] = z[s-1][t][mi][ni] - y[s-1][t][mi][ni]
+    #                     else:
+    #                         self.z[s][t][mi][ni] = 0
+                        
