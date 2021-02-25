@@ -67,8 +67,27 @@ def CVXOPT_LP(s, pa, ye):
     
     return np.squeeze(np.asarray(result['x']))
 
-def CVXOPT_OPT(s, pa, ye):
-    return 0
+def CVXOPT_OPT(s, pa, ye, ap_para):
+    pa_dic = pa.get_LP_dynamic(ye=ye, s=s)
+    
+    c = pa_dic['c']
+    A_eq, b_eq = pa_dic['A_eq'], pa_dic['b_eq']
+    A_ub, b_ub = pa_dic['A_ub'], pa_dic['b_ub']
+
+    
+    '''
+    use CVXOPT can directly get lagrange
+    '''
+    solvers.options['show_progress'] = True
+
+    Q = 2*matrix([ [2, .5], [.5, 1] ])
+    p = matrix([1.0, 1.0])
+    G = matrix(A_ub)
+    h = matrix(b_ub)
+    A = matrix(A_eq)
+    b = matrix(b_eq)
+    result = solvers.qp(Q, p, G, h, A, b)
+    return np.squeeze(np.asarray(result['x']))
 
 
 def Dynamic_H():
@@ -80,11 +99,9 @@ def Dynamic_H():
         result_static = pickle.load(pickle_file) 
 
     with open('cache/approx_rq_100.pickle', 'rb') as pickle_file:
-        ap = pickle.load(pickle_file) 
+        ap_s = pickle.load(pickle_file) 
 
-    Q = ap.parameter['Q']
-    b = ap.parameter['b']
-    c = ap.parameter['c']
+    
 
     with open('cache/cache_static.pickle', 'rb') as pickle_file:
         result_cache = pickle.load(pickle_file) 
@@ -106,8 +123,20 @@ def Dynamic_H():
     #         if s in pa.stmn2cnt and t in pa.stmn2cnt[s] and mi in pa.stmn2cnt[s][t] and ni in pa.stmn2cnt[s][t][mi]:
     #             ye[ pa.stmn2cnt[s][t][mi][ni] ] = float(result[i])
 
+
+
     for s in range(1,pa.time_horizon+1):
-        result = CVXOPT_LP(s, pa, result_static)
+        ap = ap_s[s]
+        Q = ap.parameter['Q']
+        b = ap.parameter['b']
+        c = ap.parameter['c']
+        ap_para = {
+            'Q': Q,
+            'b': b,
+            'c': c
+        }
+
+        result = CVXOPT_LP(s, pa, result_static, ap_para)
 
     dur = time.time()-s_time
 
